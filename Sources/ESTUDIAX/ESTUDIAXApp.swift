@@ -254,7 +254,11 @@ private struct DesktopHomeView: View {
                 quizQuestions = cards.filter { $0.front.localizedCaseInsensitiveContains(quizTopic) || quizTopic.isEmpty }.map { QuizQuestion(question:$0.front,answer:$0.back) }
             }.buttonStyle(.borderedProminent)
             if quizQuestions.isEmpty {
-                ContentUnavailableView("Tu práctica aparecerá aquí", systemImage: "checkmark.seal", description: Text("Crea tarjetas primero y luego conviértelas en preguntas de repaso."))
+                VStack(spacing: 10) {
+                    Image(systemName: "checkmark.seal").font(.largeTitle).foregroundStyle(.secondary)
+                    Text("Tu práctica aparecerá aquí").font(.headline)
+                    Text("Crea tarjetas primero y luego conviértelas en preguntas de repaso.").foregroundStyle(.secondary)
+                }.frame(maxWidth: .infinity, minHeight: 120)
             } else {
                 List(quizQuestions) { q in VStack(alignment:.leading,spacing:6){Text(q.question).font(.headline);Text(q.answer).foregroundStyle(.secondary)} }
             }
