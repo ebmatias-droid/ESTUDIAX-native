@@ -37,6 +37,16 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: gh release upload "${{ github.event.release.tag_name }}" ESTUDIAX-macOS.dmg --clobber
+  apple-simulators:
+    runs-on: macos-14
+    steps:
+      - uses: actions/checkout@v4
+      - run: brew install xcodegen
+      - run: xcodegen generate --spec project.yml
+      - name: Build iPhone and iPad simulator app
+        run: xcodebuild -project ESTUDIAXApple.xcodeproj -scheme ESTUDIAXiOS -sdk iphonesimulator -destination 'generic/platform=iOS Simulator' CODE_SIGNING_ALLOWED=NO build
+      - name: Build Apple Watch simulator app
+        run: xcodebuild -project ESTUDIAXApple.xcodeproj -scheme ESTUDIAXWatch -sdk watchsimulator -destination 'generic/platform=watchOS Simulator' CODE_SIGNING_ALLOWED=NO build
   android:
     runs-on: ubuntu-latest
     steps:
@@ -114,17 +124,16 @@ jobs:
         run: |
           if [ "$ASSET" = "windows" ]; then gh release upload "$TAG" ESTUDIAX-Windows-Setup.exe --clobber; fi
           if [ "$ASSET" = "linux" ]; then gh release upload "$TAG" ESTUDIAX-Linux.AppImage ESTUDIAX-Linux.deb --clobber; fi
-
   publish-continuous:
     if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'
-    needs: [macos, android, desktop]
+    needs: [macos, apple-simulators, android, desktop]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/download-artifact@v4
         with:
           path: dist
           merge-multiple: true
-      - name: Create rolling prerelease and attach verified build artifacts
+      - name: Create rolling prerelease and attach successful build artifacts
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
