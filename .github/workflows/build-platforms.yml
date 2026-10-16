@@ -157,7 +157,7 @@ jobs:
           if [ "$ASSET" = "linux" ]; then gh release upload "$TAG" ESTUDIAX-Linux.AppImage ESTUDIAX-Linux.deb --clobber; fi
 
   publish-continuous:
-    if: always() && (github.event_name == 'push' || github.event_name == 'workflow_dispatch')
+    if: (github.event_name == 'push' || github.event_name == 'workflow_dispatch') && needs.macos.result == 'success' && needs.android.result == 'success' && needs.desktop.result == 'success'
     needs: [macos, android, desktop]
     runs-on: ubuntu-latest
     steps:
