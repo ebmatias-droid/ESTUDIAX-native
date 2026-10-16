@@ -72,8 +72,12 @@ private struct WatchCalendarView: View {
     private func schedule(_ event: WatchEvent) {
         guard reminderEnabled, event.date > .now else{return}
         let content=UNMutableNotificationContent();content.title="ESTUDIAX";content.body="Próximo evento: \(event.title)";content.sound = .default
-        let comps=Calendar.current.dateComponents([.year,.month,.day],from:event.date)
-        let trigger=UNCalendarNotificationTrigger(dateMatching:comps,repeats:false)
+        let reminder = Calendar.current.date(byAdding: .day, value: -1, to: event.date) ?? event.date
+        guard reminder > .now else { return }
+        var comps = Calendar.current.dateComponents([.year,.month,.day], from: reminder)
+        comps.hour = 9
+        comps.minute = 0
+        let trigger = UNCalendarNotificationTrigger(dateMatching: comps, repeats: false)
         UNUserNotificationCenter.current().add(UNNotificationRequest(identifier:event.id,content:content,trigger:trigger))
     }
 }
