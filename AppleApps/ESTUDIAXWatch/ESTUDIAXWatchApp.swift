@@ -1,5 +1,6 @@
 import SwiftUI
 import UserNotifications
+import WatchConnectivity
 
 @main
 struct ESTUDIAXWatchApp: App {
@@ -8,7 +9,8 @@ struct ESTUDIAXWatchApp: App {
 
 private struct WatchCalendarView: View {
     @AppStorage("estudiax.watch.events.v1") private var eventData = "[]"
-    @State private var reminderEnabled = false
+    @AppStorage("estudiax.watch.remindersEnabled") private var reminderEnabled = false
+    @StateObject private var sync = WatchSyncReceiver()
     @State private var title = ""
     @State private var eventDate = Date()
 
@@ -48,6 +50,8 @@ private struct WatchCalendarView: View {
                     Text("Los avisos se programan localmente en el reloj; no necesitan un servidor.").font(.caption2).foregroundStyle(.secondary)
                 }
             }.navigationTitle("ESTUDIAX")
+                .onAppear { sync.activate() }
+                .onChange(of: sync.eventsJSON) { _, value in if value != "[]" { eventData = value } }
         }
     }
 
@@ -71,4 +75,28 @@ private struct WatchEvent: Codable, Identifiable {
     var id:String
     var title:String
     var date:Date
+}
+
+
+private final class WatchSyncReceiver: NSObject, ObservableObject, WCSessionDelegate {
+    @Published var eventsJSON = "[]"
+    func activate() {
+        guard WCSession.isSupported() else { return }
+        WCSession.default.delegate = self
+        WCSession.default.activate()
+    }
+    func session(_ session: WCSession, activationDidCompleteWith activationState: WCSessionActivationState, error: Error?) {
+        if activationState == .activated { receive(session.receivedApplicationContext) }
+    }
+    func session(_ session: WCSession, didReceiveApplicationContext applicationContext: [String: Any]) { receive(applicationContext) }
+    private func receive(_ context: [String: Any]) {
+        guard let raw = context["events"] as? [[String: Any]] else { return }
+        let list: [WatchEvent] = raw.compactMap { item in
+            guard let id = item["id"] as? String, let title = item["title"] as? String,
+                  let timestamp = item["date"] as? Double else { return nil }
+            return WatchEvent(id: id, title: title, date: Date(timeIntervalSince1970: timestamp))
+        }
+        guard let data = try? JSONEncoder().encode(list) else { return }
+        DispatchQueue.main.async { self.eventsJSON = String(decoding: data, as: UTF8.self) }
+    }
 }
