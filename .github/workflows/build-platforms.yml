@@ -200,14 +200,17 @@ jobs:
         with:
           name: ESTUDIAX-Android-APK
           path: dist
+          merge-multiple: true
       - uses: actions/download-artifact@v4
         with:
           name: ESTUDIAX-windows-installer
           path: dist
+          merge-multiple: true
       - uses: actions/download-artifact@v4
         with:
           name: ESTUDIAX-linux-installer
           path: dist
+          merge-multiple: true
       - name: Generate SHA-256 checksums
         run: cd dist && sha256sum * > SHA256SUMS.txt
       - name: Install Cosign
