@@ -1,0 +1,270 @@
+name: Sign native ESTUDIAX releases
+
+on:
+  workflow_dispatch:
+    inputs:
+      release_tag:
+        description: Existing GitHub Release tag to update (for example continuous)
+        required: true
+        default: continuous
+        type: string
+
+permissions:
+  contents: write
+
+jobs:
+  macos-signed:
+    name: Sign and notarize macOS DMG
+    runs-on: macos-14
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Check signing configuration
+        env:
+          P12: ${{ secrets.MACOS_CERTIFICATE_P12_BASE64 }}
+          P12_PASSWORD: ${{ secrets.MACOS_CERTIFICATE_PASSWORD }}
+          IDENTITY: ${{ secrets.MACOS_SIGNING_IDENTITY }}
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
+          TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+        run: |
+          for name in P12 P12_PASSWORD IDENTITY APPLE_ID APPLE_PASSWORD TEAM_ID; do
+            if [ -z "${!name}" ]; then echo "::error::Missing GitHub Actions secret for $name"; exit 1; fi
+          done
+      - name: Build app and icon
+        run: |
+          python3 -m pip install --user pillow
+          python3 scripts/generate-icons.py
+          iconutil -c icns ESTUDIAX.iconset -o "$RUNNER_TEMP/ESTUDIAX.icns"
+          swift test
+          swift build -c release
+      - name: Import Developer ID certificate
+        env:
+          P12: ${{ secrets.MACOS_CERTIFICATE_P12_BASE64 }}
+          P12_PASSWORD: ${{ secrets.MACOS_CERTIFICATE_PASSWORD }}
+          KEYCHAIN_PASSWORD: ${{ secrets.MACOS_KEYCHAIN_PASSWORD }}
+        run: |
+          KEYCHAIN_PASSWORD="${KEYCHAIN_PASSWORD:-$(openssl rand -hex 24)}"
+          echo "$P12" | base64 --decode > "$RUNNER_TEMP/developer-id.p12"
+          security create-keychain -p "$KEYCHAIN_PASSWORD" "$RUNNER_TEMP/estudiax.keychain"
+          security set-keychain-settings -lut 21600 "$RUNNER_TEMP/estudiax.keychain"
+          security unlock-keychain -p "$KEYCHAIN_PASSWORD" "$RUNNER_TEMP/estudiax.keychain"
+          security import "$RUNNER_TEMP/developer-id.p12" -k "$RUNNER_TEMP/estudiax.keychain" -P "$P12_PASSWORD" -T /usr/bin/codesign
+          security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k "$KEYCHAIN_PASSWORD" "$RUNNER_TEMP/estudiax.keychain"
+          security list-keychains -d user -s "$RUNNER_TEMP/estudiax.keychain" login.keychain-db
+      - name: Package, sign and verify app
+        env:
+          IDENTITY: ${{ secrets.MACOS_SIGNING_IDENTITY }}
+        run: |
+          mkdir -p package/ESTUDIAX.app/Contents/MacOS package/ESTUDIAX.app/Contents/Resources
+          cp .build/release/ESTUDIAX package/ESTUDIAX.app/Contents/MacOS/ESTUDIAX
+          cp "$RUNNER_TEMP/ESTUDIAX.icns" package/ESTUDIAX.app/Contents/Resources/ESTUDIAX.icns
+          cat > package/ESTUDIAX.app/Contents/Info.plist <<'PLIST'
+          <?xml version="1.0" encoding="UTF-8"?>
+          <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+          <plist version="1.0"><dict>
+          <key>CFBundleExecutable</key><string>ESTUDIAX</string>
+          <key>CFBundleIconFile</key><string>ESTUDIAX.icns</string>
+          <key>LSMinimumSystemVersion</key><string>13.0</string>
+          <key>CFBundleIdentifier</key><string>app.estudiax.mac</string>
+          <key>CFBundleName</key><string>ESTUDIAX</string>
+          <key>CFBundlePackageType</key><string>APPL</string>
+          <key>CFBundleVersion</key><string>0.1.0</string>
+          <key>CFBundleShortVersionString</key><string>0.1.0</string>
+          </dict></plist>
+          PLIST
+          printf 'APPL????' > package/ESTUDIAX.app/Contents/PkgInfo
+          chmod +x package/ESTUDIAX.app/Contents/MacOS/ESTUDIAX
+          codesign --force --options runtime --timestamp --sign "$IDENTITY" package/ESTUDIAX.app
+          codesign --verify --deep --strict --verbose=2 package/ESTUDIAX.app
+          spctl --assess --type execute --verbose=2 package/ESTUDIAX.app
+          hdiutil create -volname ESTUDIAX -srcfolder package -ov -format UDZO ESTUDIAX-macOS.dmg
+          hdiutil verify ESTUDIAX-macOS.dmg
+      - name: Notarize and staple DMG
+        env:
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
+          TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+        run: |
+          xcrun notarytool submit ESTUDIAX-macOS.dmg --apple-id "$APPLE_ID" --password "$APPLE_PASSWORD" --team-id "$TEAM_ID" --wait
+          xcrun stapler staple ESTUDIAX-macOS.dmg
+          xcrun stapler validate ESTUDIAX-macOS.dmg
+      - name: Replace macOS release asset with signed DMG
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ inputs.release_tag }}
+        run: gh release upload "$TAG" ESTUDIAX-macOS.dmg --repo "${{ github.repository }}" --clobber
+
+  windows-signed:
+    name: Authenticode-sign Windows installer
+    runs-on: windows-latest
+    steps:
+      - name: Download existing installer
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ inputs.release_tag }}
+        run: |
+          gh release download "$env:TAG" --repo "${{ github.repository }}" --pattern "ESTUDIAX-Windows-Setup.exe" --dir dist
+      - name: Sign and verify installer
+        shell: pwsh
+        env:
+          PFX_BASE64: ${{ secrets.WINDOWS_CERTIFICATE_PFX_BASE64 }}
+          PFX_PASSWORD: ${{ secrets.WINDOWS_CERTIFICATE_PASSWORD }}
+        run: |
+          if (-not $env:PFX_BASE64 -or -not $env:PFX_PASSWORD) { throw "Configure WINDOWS_CERTIFICATE_PFX_BASE64 and WINDOWS_CERTIFICATE_PASSWORD repository secrets." }
+          $pfx = Join-Path $env:RUNNER_TEMP "estudiax-signing.pfx"
+          [IO.File]::WriteAllBytes($pfx, [Convert]::FromBase64String($env:PFX_BASE64))
+          $signtool = Get-ChildItem "C:\Program Files (x86)\Windows Kits\10\bin\*\x64\signtool.exe" | Sort-Object FullName -Descending | Select-Object -First 1
+          if (-not $signtool) { throw "Windows SDK signtool.exe was not found." }
+          & $signtool.FullName sign /f $pfx /p $env:PFX_PASSWORD /fd SHA256 /tr http://timestamp.digicert.com /td SHA256 dist\ESTUDIAX-Windows-Setup.exe
+          if ($LASTEXITCODE -ne 0) { throw "Authenticode signing failed." }
+          & $signtool.FullName verify /pa /v dist\ESTUDIAX-Windows-Setup.exe
+          if ($LASTEXITCODE -ne 0) { throw "Authenticode verification failed." }
+      - name: Replace Windows release asset with signed installer
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ inputs.release_tag }}
+        run: gh release upload "$env:TAG" dist\ESTUDIAX-Windows-Setup.exe --repo "${{ github.repository }}" --clobber
+
+  android-signed:
+    name: Build and sign Android release APK
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: "8.9"
+      - name: Configure release keystore
+        env:
+          KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+        run: |
+          test -n "$KEYSTORE_BASE64" || { echo "::error::Configure ANDROID_KEYSTORE_BASE64 and the Android signing secrets."; exit 1; }
+          echo "$KEYSTORE_BASE64" | base64 --decode > "$RUNNER_TEMP/estudiax-release.jks"
+      - name: Build signed APK
+        env:
+          ANDROID_KEYSTORE_PATH: ${{ runner.temp }}/estudiax-release.jks
+          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+        run: |
+          for name in ANDROID_KEYSTORE_PASSWORD ANDROID_KEY_ALIAS ANDROID_KEY_PASSWORD; do
+            if [ -z "${!name}" ]; then echo "::error::Missing secret $name"; exit 1; fi
+          done
+          gradle -p android assembleRelease
+          cp android/app/build/outputs/apk/release/app-release.apk ESTUDIAX-Android.apk
+          apksigner verify --verbose --print-certs ESTUDIAX-Android.apk
+      - name: Replace Android release asset with signed APK
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ inputs.release_tag }}
+        run: gh release upload "$TAG" ESTUDIAX-Android.apk --repo "${{ github.repository }}" --clobber
+
+  linux-signatures:
+    name: Sign Linux package checksums
+    runs-on: ubuntu-22.04
+    steps:
+      - name: Download Linux packages
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ inputs.release_tag }}
+        run: |
+          mkdir dist
+          gh release download "$TAG" --repo "${{ github.repository }}" --pattern "ESTUDIAX-Linux.AppImage" --dir dist
+          gh release download "$TAG" --repo "${{ github.repository }}" --pattern "ESTUDIAX-Linux.deb" --dir dist
+      - name: Sign Linux packages with project release key
+        env:
+          GPG_PRIVATE_KEY: ${{ secrets.RELEASE_GPG_PRIVATE_KEY }}
+          GPG_PASSPHRASE: ${{ secrets.RELEASE_GPG_PASSPHRASE }}
+        run: |
+          test -n "$GPG_PRIVATE_KEY" || { echo "::error::Configure RELEASE_GPG_PRIVATE_KEY and RELEASE_GPG_PASSPHRASE."; exit 1; }
+          printf '%s' "$GPG_PRIVATE_KEY" | gpg --batch --import
+          for f in dist/ESTUDIAX-Linux.AppImage dist/ESTUDIAX-Linux.deb; do
+            gpg --batch --yes --pinentry-mode loopback --passphrase "$GPG_PASSPHRASE" --armor --detach-sign "$f"
+          done
+          cd dist && sha256sum ESTUDIAX-Linux.AppImage ESTUDIAX-Linux.deb > SHA256SUMS-signed.txt
+          gpg --batch --yes --pinentry-mode loopback --passphrase "$GPG_PASSPHRASE" --armor --detach-sign dist/SHA256SUMS-signed.txt
+      - name: Upload Linux signatures
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ inputs.release_tag }}
+        run: gh release upload "$TAG" dist/*.asc dist/SHA256SUMS-signed.txt --repo "${{ github.repository }}" --clobber
+
+  ios-testflight:
+    name: Archive and upload iPhone/iPad + Watch to TestFlight
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - uses: maxim-lobanov/setup-xcode@v1
+        with:
+          xcode-version: "16.4"
+      - name: Validate Apple distribution secrets
+        env:
+          P12: ${{ secrets.IOS_CERTIFICATE_P12_BASE64 }}
+          P12_PASSWORD: ${{ secrets.IOS_CERTIFICATE_PASSWORD }}
+          TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          KEY_ID: ${{ secrets.APP_STORE_CONNECT_KEY_ID }}
+          ISSUER_ID: ${{ secrets.APP_STORE_CONNECT_ISSUER_ID }}
+          API_KEY: ${{ secrets.APP_STORE_CONNECT_PRIVATE_KEY_BASE64 }}
+        run: |
+          for name in P12 P12_PASSWORD TEAM_ID KEY_ID ISSUER_ID API_KEY; do
+            if [ -z "${!name}" ]; then echo "::error::Missing Apple signing configuration: $name"; exit 1; fi
+          done
+      - name: Install Apple signing certificate and API key
+        env:
+          P12: ${{ secrets.IOS_CERTIFICATE_P12_BASE64 }}
+          P12_PASSWORD: ${{ secrets.IOS_CERTIFICATE_PASSWORD }}
+          KEY_ID: ${{ secrets.APP_STORE_CONNECT_KEY_ID }}
+          KEY_PASSWORD: ${{ secrets.APP_STORE_CONNECT_PRIVATE_KEY_BASE64 }}
+        run: |
+          security create-keychain -p "ci-${{ github.run_id }}" "$RUNNER_TEMP/ios.keychain"
+          security unlock-keychain -p "ci-${{ github.run_id }}" "$RUNNER_TEMP/ios.keychain"
+          echo "$P12" | base64 --decode > "$RUNNER_TEMP/apple-distribution.p12"
+          security import "$RUNNER_TEMP/apple-distribution.p12" -k "$RUNNER_TEMP/ios.keychain" -P "$P12_PASSWORD" -T /usr/bin/codesign
+          security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k "ci-${{ github.run_id }}" "$RUNNER_TEMP/ios.keychain"
+          security list-keychains -d user -s "$RUNNER_TEMP/ios.keychain" login.keychain-db
+          mkdir -p "$RUNNER_TEMP/appstore"
+          echo "$KEY_PASSWORD" | base64 --decode > "$RUNNER_TEMP/appstore/AuthKey_$KEY_ID.p8"
+          echo "APP_STORE_KEY_PATH=$RUNNER_TEMP/appstore/AuthKey_$KEY_ID.p8" >> "$GITHUB_ENV"
+      - name: Generate Xcode project
+        run: |
+          python3 -m pip install --user pillow
+          python3 scripts/generate-icons.py
+          brew install xcodegen
+          xcodegen generate --spec project.yml
+      - name: Archive and export signed iOS app
+        env:
+          TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          KEY_ID: ${{ secrets.APP_STORE_CONNECT_KEY_ID }}
+          ISSUER_ID: ${{ secrets.APP_STORE_CONNECT_ISSUER_ID }}
+        run: |
+          xcodebuild -project ESTUDIAXApple.xcodeproj -scheme ESTUDIAXiOS -destination 'generic/platform=iOS' -archivePath "$RUNNER_TEMP/ESTUDIAX.xcarchive" -allowProvisioningUpdates -authenticationKeyPath "$APP_STORE_KEY_PATH" -authenticationKeyID "$KEY_ID" -authenticationKeyIssuerID "$ISSUER_ID" DEVELOPMENT_TEAM="$TEAM_ID" CODE_SIGN_STYLE=Automatic archive
+          cat > "$RUNNER_TEMP/ExportOptions.plist" <<PLIST
+          <?xml version="1.0" encoding="UTF-8"?>
+          <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+          <plist version="1.0"><dict>
+          <key>method</key><string>app-store-connect</string>
+          <key>signingStyle</key><string>automatic</string>
+          <key>teamID</key><string>$TEAM_ID</string>
+          <key>uploadSymbols</key><true/>
+          </dict></plist>
+          PLIST
+          xcodebuild -exportArchive -archivePath "$RUNNER_TEMP/ESTUDIAX.xcarchive" -exportPath "$RUNNER_TEMP/export" -exportOptionsPlist "$RUNNER_TEMP/ExportOptions.plist"
+      - name: Upload signed build to TestFlight
+        env:
+          KEY_ID: ${{ secrets.APP_STORE_CONNECT_KEY_ID }}
+          ISSUER_ID: ${{ secrets.APP_STORE_CONNECT_ISSUER_ID }}
+        run: |
+          IPA=$(find "$RUNNER_TEMP/export" -maxdepth 1 -name '*.ipa' -print -quit)
+          test -n "$IPA" || { echo "::error::Xcode did not export an IPA."; exit 1; }
+          xcrun altool --upload-app --type ios --file "$IPA" --apiKey "$KEY_ID" --apiIssuer "$ISSUER_ID"
