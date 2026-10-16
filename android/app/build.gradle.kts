@@ -16,7 +16,9 @@ android { namespace = "app.estudiax.android"; compileSdk = 35
  }
  buildTypes {
   release {
-   isMinifyEnabled = false
+   isMinifyEnabled = true
+   isShrinkResources = true
+   proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
    val keystorePath = System.getenv("ANDROID_KEYSTORE_PATH")
    if (!keystorePath.isNullOrBlank()) signingConfig = signingConfigs.getByName("release")
   }
