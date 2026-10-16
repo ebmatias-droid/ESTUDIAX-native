@@ -226,12 +226,12 @@ private struct HomeView: View {
                     Task { await scheduleReminders() }
                 }
             }.buttonStyle(.borderedProminent)
-            Button("Copiar copia de seguridad") {
-                let payload = ["tasks": tasks.map { "\($0.title) | \($0.subject) | \($0.dueDate?.description ?? "") | completada: \($0.isCompleted)" }.joined(separator: "\n"),
-                               "cards": cards.map { "\($0.question) → \($0.answer)" }.joined(separator: "\n")]
+            Button("Copiar copia de seguridad", action: {
+                let taskLines = tasks.map { "\($0.title) | \($0.subject) | \($0.dueDate?.description ?? "") | completada: \($0.isCompleted)" }.joined(separator: "\n")
+                let cardLines = cards.map { "\($0.question) → \($0.answer)" }.joined(separator: "\n")
                 NSPasteboard.general.clearContents()
-                NSPasteboard.general.setString(payload.joined(separator: "\n\n"), forType: .string)
-            }
+                NSPasteboard.general.setString("Tareas:\n\(taskLines)\n\nTarjetas:\n\(cardLines)", forType: .string)
+            })
             Button("Borrar tareas y tarjetas locales", role: .destructive) {
                 Task { for task in await store.allTasks() { try? await store.delete(id: task.id) }; saveCards([]); await reload() }
             }
@@ -257,7 +257,8 @@ private struct HomeView: View {
     private func toggle(_ task: StudyTask) {
         var updated = task
         updated.isCompleted.toggle()
-        Task { try? await store.save(updated); await reload() }
+        let updatedTask = updated
+        Task { try? await store.save(updatedTask); await reload() }
     }
 
     private func delete(_ task: StudyTask) {
@@ -277,7 +278,7 @@ private struct HomeView: View {
             content.title = "ESTUDIAX · Entrega próxima"
             content.body = task.title
             content.sound = .default
-            center.add(UNNotificationRequest(identifier: task.id.uuidString, content: content,
+            try? await center.add(UNNotificationRequest(identifier: task.id.uuidString, content: content,
                                              trigger: UNCalendarNotificationTrigger(dateMatching: components, repeats: false)))
         }
     }
