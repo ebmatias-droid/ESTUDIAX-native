@@ -85,7 +85,10 @@ jobs:
       - uses: gradle/actions/setup-gradle@v4
         with:
           gradle-version: '8.9'
-      - run: gradle -p android assembleDebug
+      - name: Run Android unit tests and lint
+        run: gradle -p android testDebugUnitTest lintDebug
+      - name: Build Android debug APK
+        run: gradle -p android assembleDebug
       - run: cp android/app/build/outputs/apk/debug/app-debug.apk ESTUDIAX-Android-debug.apk
       - uses: actions/upload-artifact@v4
         with:
@@ -226,3 +229,31 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           TAG: ${{ github.event.release.tag_name }}
         run: gh release upload "$TAG" dist/* --repo "${{ github.repository }}" --clobber
+
+  publish-apple-preview:
+    if: (github.event_name == 'push' || github.event_name == 'workflow_dispatch') && needs.macos.result == 'success'
+    needs: [macos]
+    permissions:
+      contents: write
+      id-token: write
+    runs-on: macos-14
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: ESTUDIAX-macOS-DMG
+          path: dist
+      - name: Install Cosign
+        uses: sigstore/cosign-installer@v3.9.2
+      - name: Generate checksum and free keyless provenance signature
+        run: |
+          set -euo pipefail
+          cd dist
+          shasum -a 256 ESTUDIAX-macOS.dmg > ESTUDIAX-macOS.dmg.sha256
+          cosign sign-blob --yes --bundle ESTUDIAX-macOS.dmg.sigstore.json ESTUDIAX-macOS.dmg
+      - name: Publish Apple preview with explicit unsigned status
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          gh release view continuous --repo "${{ github.repository }}" >/dev/null 2>&1 || gh release create continuous --repo "${{ github.repository }}" --target main --prerelease --title "ESTUDIAX continuous builds" --notes "Automated preview builds. Apple DMG has a free Sigstore provenance bundle but is not Apple Developer ID signed or notarized."
+          gh release upload continuous dist/ESTUDIAX-macOS.dmg dist/ESTUDIAX-macOS.dmg.sha256 dist/ESTUDIAX-macOS.dmg.sigstore.json --repo "${{ github.repository }}" --clobber
