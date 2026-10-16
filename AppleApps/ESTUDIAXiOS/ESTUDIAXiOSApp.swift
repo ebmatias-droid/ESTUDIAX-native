@@ -1,5 +1,7 @@
 import SwiftUI
 import UIKit
+import WatchConnectivity
+import UserNotifications
 
 @main
 struct ESTUDIAXiOSApp: App {
@@ -27,7 +29,7 @@ private struct MobileHomeView: View {
         (try? JSONDecoder().decode([MobileCard].self, from: Data(cardData.utf8))) ?? []
     }
     private func saveTasks(_ value: [StudyTask]) {
-        if let data = try? JSONEncoder().encode(value) { taskData = String(decoding: data, as: UTF8.self) }
+        if let data = try? JSONEncoder().encode(value) { taskData = String(decoding: data, as: UTF8.self) }; PhoneWatchSync.shared.publish(value); scheduleMobileReminders(value)
     }
     private func saveCards(_ value: [MobileCard]) {
         if let data = try? JSONEncoder().encode(value) { cardData = String(decoding: data, as: UTF8.self) }
@@ -156,7 +158,8 @@ private struct MobileHomeView: View {
                         let text = payload.map{"\($0.key): \($0.value)"}.joined(separator:"\n")
                         UIPasteboard.general.string = text
                     }
-                    Button("Borrar datos locales",role:.destructive) { taskData="[]";cardData="[]" }
+                    Button("Activar recordatorios locales") { UNUserNotificationCenter.current().requestAuthorization(options: [.alert, .sound, .badge]) { granted, _ in if granted { scheduleMobileReminders(tasks) } } }
+                    Button("Borrar datos locales",role:.destructive) { taskData="[]";cardData="[]";PhoneWatchSync.shared.publish([]) }
                 }
                 Section("Servicios opcionales") {
                     Text("La IA y Google Drive requieren una integración configurada. Esta versión nativa no se conecta automáticamente al servidor.")
@@ -170,4 +173,46 @@ private struct MobileCard: Codable, Identifiable {
     var id: String
     var front: String
     var back: String
+}
+
+
+private func scheduleMobileReminders(_ tasks: [StudyTask]) {
+    let center = UNUserNotificationCenter.current()
+    center.getNotificationSettings { settings in
+        guard settings.authorizationStatus == .authorized else { return }
+        center.removeAllPendingNotificationRequests()
+        for task in tasks where !task.isCompleted {
+            guard let due = task.dueDate, due > .now else { continue }
+            let content = UNMutableNotificationContent()
+            content.title = "ESTUDIAX · Entrega próxima"
+            content.body = task.title
+            content.sound = .default
+            let date = Calendar.current.date(byAdding: .day, value: -1, to: due) ?? due
+            let parts = Calendar.current.dateComponents([.year, .month, .day, .hour, .minute], from: date)
+            let trigger = UNCalendarNotificationTrigger(dateMatching: parts, repeats: false)
+            center.add(UNNotificationRequest(identifier: task.id.uuidString, content: content, trigger: trigger))
+        }
+    }
+}
+private final class PhoneWatchSync: NSObject, WCSessionDelegate {
+    static let shared = PhoneWatchSync()
+    private var latest: [[String: Any]] = []
+    private override init() { super.init() }
+    func publish(_ tasks: [StudyTask]) {
+        latest = tasks.compactMap { task in
+            guard let due = task.dueDate else { return nil }
+            return ["id": task.id.uuidString, "title": task.title, "date": due.timeIntervalSince1970, "done": task.isCompleted] as [String: Any]
+        }
+        guard WCSession.isSupported() else { return }
+        let session = WCSession.default
+        session.delegate = self
+        if session.activationState == .activated { sendLatest(session) } else { session.activate() }
+    }
+    private func sendLatest(_ session: WCSession) {
+        guard session.activationState == .activated else { return }
+        try? session.updateApplicationContext(["events": latest])
+    }
+    func session(_ session: WCSession, activationDidCompleteWith activationState: WCSessionActivationState, error: Error?) { if activationState == .activated { sendLatest(session) } }
+    func sessionDidBecomeInactive(_ session: WCSession) {}
+    func sessionDidDeactivate(_ session: WCSession) { session.activate() }
 }
