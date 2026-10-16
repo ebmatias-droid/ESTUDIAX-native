@@ -1,29 +1,37 @@
 # ESTUDIAX Native & Desktop
 
-Local-first study tools for desktop and Android. The original website remains available at https://estudiax.higgsfield.app.
+ESTUDIAX is a local-first study app project. The live web app is available at https://estudiax.higgsfield.app.
 
-## Current implementations
-- `Sources/`: SwiftUI macOS starter and Swift local-storage core.
-- `desktop/`: Tauri desktop app for Windows/Linux: local tasks, calendar, flashcards, progress, data export/deletion.
-- `android/`: Kotlin app for Android: local tasks, a daily calendar view and progress.
-- `docs/`: privacy architecture and honest platform roadmap.
+## Project layout
+
+- `Sources/`: SwiftUI macOS app and local-storage core.
+- `AppleApps/`: iPhone/iPad app and Apple Watch calendar/reminder companion.
+- `desktop/`: Tauri app for Windows and Linux.
+- `android/`: native Kotlin app for Android.
+- `website/`: public source snapshot of the live ESTUDIAX web app, including UI components, server routes, migrations, configuration and assets. See [website/README-SNAPSHOT.md](website/README-SNAPSHOT.md).
+- `docs/`: privacy architecture, platform roadmap, production readiness and signing instructions.
 
 ## Privacy contract
-- No required account or network request on startup.
-- Local study data stays on device.
-- Terms are stored locally by terms version.
-- AI and Google Drive are optional and should connect only on explicit action.
-- No Turnstile/CAPTCHA in native startup; no API secrets inside app bundles.
 
-## Production readiness
+- Native startup does not require an account or network request.
+- Native study data stays on the device unless the user explicitly exports it.
+- Terms are accepted locally on first launch.
+- AI and Google Drive are optional online services opened only by user action.
+- No Turnstile/CAPTCHA in native startup and no API secrets in app bundles.
 
-See [docs/PRODUCTION-READINESS.md](docs/PRODUCTION-READINESS.md) for device-test requirements and [docs/SIGNING-SETUP.md](docs/SIGNING-SETUP.md) for the signing workflow, required protected GitHub Actions secrets, and release steps. The workflow is ready to run after the project owner configures the platform certificates and signing keys; no private credentials are stored in this repository.
+## Build locally
 
-## Build
 ```sh
 swift test && swift build -c release
 cd desktop && npm install && npm run tauri -- build
 gradle -p android assembleDebug
-``
+cd website/app && bun install --frozen-lockfile && bun run typecheck && bun run build
+```
 
-GitHub Actions creates installable test artifacts for macOS, Windows, Linux, and Android, and runs iOS/iPadOS and watchOS simulator builds. The rolling `continuous` release is a prerelease, not a stable release. The Android APK is debug-signed; the macOS DMG is unsigned and unnotarized; Windows installers are not code-signed. Treat these as test builds, not store-ready releases. CI also publishes `SHA256SUMS.txt` so downloaded artifacts can be integrity-checked. iOS/iPadOS and watchOS are currently simulator-build targets only: no signed IPA/watchOS package is distributed yet. Real-device testing, Apple Developer signing, privacy/store metadata, and App Store Connect submission are still required before public Apple releases.
+## Native downloads and signing
+
+GitHub Actions publishes test artifacts for macOS, Windows, Linux and Android, and builds iPhone/iPad and Watch simulator targets. Current `continuous` assets remain test builds until the signed-release workflow is run successfully with real signing credentials.
+
+See [docs/PRODUCTION-READINESS.md](docs/PRODUCTION-READINESS.md) for release limitations and [docs/SIGNING-SETUP.md](docs/SIGNING-SETUP.md) for required protected GitHub Actions secrets and the signing workflow. That workflow covers macOS Developer ID signing and notarization, Windows Authenticode signing, an Android release APK, Linux detached signatures, and TestFlight upload for iPhone/iPad with the Watch companion.
+
+**Important:** the workflow is configured but does not magically create publisher identity or certificates. The owner must supply valid certificates/keys and complete platform-account setup. No private credentials belong in this repository or in chat. An unsigned build is not automatically malware; signing lets the operating system verify the publisher and, for Apple distribution, notarization status.
