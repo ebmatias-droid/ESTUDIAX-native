@@ -276,10 +276,13 @@ jobs:
           cd dist
           shasum -a 256 ESTUDIAX-macOS.dmg > ESTUDIAX-macOS.dmg.sha256
           cosign sign-blob --yes --bundle ESTUDIAX-macOS.dmg.sigstore.json ESTUDIAX-macOS.dmg
+          cosign sign-blob --yes --bundle ESTUDIAX-macOS.dmg.sha256.sigstore.json ESTUDIAX-macOS.dmg.sha256
+          test -s ESTUDIAX-macOS.dmg.sigstore.json
+          test -s ESTUDIAX-macOS.dmg.sha256.sigstore.json
       - name: Publish Apple preview with explicit unsigned status
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
           gh release view continuous --repo "${{ github.repository }}" >/dev/null 2>&1 || gh release create continuous --repo "${{ github.repository }}" --target main --prerelease --title "ESTUDIAX continuous builds" --notes "Automated preview builds. Apple DMG has a free Sigstore provenance bundle but is not Apple Developer ID signed or notarized."
-          gh release upload continuous dist/ESTUDIAX-macOS.dmg dist/ESTUDIAX-macOS.dmg.sha256 dist/ESTUDIAX-macOS.dmg.sigstore.json --repo "${{ github.repository }}" --clobber
+          gh release upload continuous dist/ESTUDIAX-macOS.dmg dist/ESTUDIAX-macOS.dmg.sha256 dist/ESTUDIAX-macOS.dmg.sigstore.json dist/ESTUDIAX-macOS.dmg.sha256.sigstore.json --repo "${{ github.repository }}" --clobber
