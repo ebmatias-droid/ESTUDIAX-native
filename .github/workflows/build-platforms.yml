@@ -37,8 +37,9 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: gh release upload "${{ github.event.release.tag_name }}" ESTUDIAX-macOS.dmg --clobber
+
   apple-simulators:
-    runs-on: macos-14
+    runs-on: macos-15
     steps:
       - uses: actions/checkout@v4
       - run: brew install xcodegen
@@ -47,6 +48,7 @@ jobs:
         run: xcodebuild -project ESTUDIAXApple.xcodeproj -scheme ESTUDIAXiOS -sdk iphonesimulator -destination 'generic/platform=iOS Simulator' CODE_SIGNING_ALLOWED=NO build
       - name: Build Apple Watch simulator app
         run: xcodebuild -project ESTUDIAXApple.xcodeproj -scheme ESTUDIAXWatch -sdk watchsimulator -destination 'generic/platform=watchOS Simulator' CODE_SIGNING_ALLOWED=NO build
+
   android:
     runs-on: ubuntu-latest
     steps:
@@ -69,6 +71,7 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: gh release upload "${{ github.event.release.tag_name }}" ESTUDIAX-Android-debug.apk --clobber
+
   desktop:
     strategy:
       fail-fast: false
@@ -86,6 +89,29 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 20
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Generate platform icons
+        run: |
+          python -m pip install --upgrade pillow
+          python - <<'PY'
+          from PIL import Image, ImageDraw
+          from pathlib import Path
+          p = Path("desktop/src-tauri/icons")
+          p.mkdir(parents=True, exist_ok=True)
+          im = Image.new("RGBA", (256, 256), (16, 24, 39, 255))
+          d = ImageDraw.Draw(im)
+          d.rounded_rectangle((28, 28, 228, 228), radius=38, fill=(55, 111, 232, 255))
+          d.rounded_rectangle((66, 52, 190, 204), radius=12, fill=(245, 248, 255, 255))
+          d.line((128, 65, 128, 190), fill=(55, 111, 232, 255), width=7)
+          d.line((84, 92, 112, 92), fill=(55, 111, 232, 255), width=6)
+          d.line((84, 112, 112, 112), fill=(55, 111, 232, 255), width=6)
+          d.line((144, 92, 172, 92), fill=(55, 111, 232, 255), width=6)
+          d.line((144, 112, 172, 112), fill=(55, 111, 232, 255), width=6)
+          im.save(p / "icon.png")
+          im.save(p / "icon.ico", sizes=[(256,256),(128,128),(64,64),(48,48),(32,32),(16,16)])
+          PY
       - uses: dtolnay/rust-toolchain@stable
       - uses: Swatinem/rust-cache@v2
         with:
@@ -103,11 +129,14 @@ jobs:
         run: |
           if [ "${{ matrix.asset }}" = "windows" ]; then
             f=$(find desktop/src-tauri/target/release/bundle/nsis -type f -name '*.exe' | head -1)
+            test -n "$f"
             cp "$f" ESTUDIAX-Windows-Setup.exe
           else
             f=$(find desktop/src-tauri/target/release/bundle/appimage -type f -name '*.AppImage' | head -1)
+            test -n "$f"
             cp "$f" ESTUDIAX-Linux.AppImage
             f=$(find desktop/src-tauri/target/release/bundle/deb -type f -name '*.deb' | head -1)
+            test -n "$f"
             cp "$f" ESTUDIAX-Linux.deb
           fi
       - uses: actions/upload-artifact@v4
@@ -124,6 +153,7 @@ jobs:
         run: |
           if [ "$ASSET" = "windows" ]; then gh release upload "$TAG" ESTUDIAX-Windows-Setup.exe --clobber; fi
           if [ "$ASSET" = "linux" ]; then gh release upload "$TAG" ESTUDIAX-Linux.AppImage ESTUDIAX-Linux.deb --clobber; fi
+
   publish-continuous:
     if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'
     needs: [macos, android, desktop]
