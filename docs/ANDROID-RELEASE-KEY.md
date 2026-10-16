@@ -13,7 +13,7 @@ keytool -genkeypair -v \
   -keyalg RSA -keysize 3072 -validity 10000
 ```
 
-Choose strong, unique passwords and record them in a password manager. The certificate identity prompts do not need to contain sensitive personal information; use accurate project/publisher information where appropriate.
+Choose strong, unique passwords and record them in a password manager. Use accurate project/publisher information where appropriate, without adding unnecessary personal information.
 
 Make at least two secure backups of `estudiax-release.jks`. Do not email it or upload it to the public repository. Do not regenerate it for future updates to the same Android application ID.
 
@@ -32,12 +32,12 @@ Open the repository on GitHub and navigate to **Settings → Secrets and variabl
 - `ANDROID_KEY_ALIAS`: `estudiax-release`
 - `ANDROID_KEY_PASSWORD`: key password
 
-After configuring, securely delete the temporary base64 text file if you do not need it. Keep the original keystore and backups protected.
+After configuring, securely delete the temporary base64 text file if you do not need it. Keep the original keystore and backups protected. Never paste the secrets into ChatGPT or GitHub issues.
 
-## 3. Build
+## 3. Build the release APK
 
-The existing workflow at **Actions → Sign native ESTUDIAX releases → Run workflow** also contains macOS, Windows and Apple jobs that require paid certificates/accounts. It will not finish successfully until those platform credentials are configured. Do not run that combined workflow expecting only Android to run.
+After all four secrets exist, open **Actions → Android signed release APK (free) → Run workflow**, select the existing tag (normally `continuous`), and run it. It will build the release APK, verify its native Android signature with `apksigner`, and upload `ESTUDIAX-Android.apk` to that release.
 
-The current free Sigstore workflow signs the bytes of existing release downloads for tamper detection; it does not replace this Android release APK signing step. Once a separate Android-only release workflow is available, use it to build and verify the signed release APK.
+The separate **Free verifiable signatures (Sigstore)** workflow signs existing Android, Windows and Linux downloads for tamper detection; it does not replace native Android APK signing.
 
-Never paste passwords or keystore contents into ChatGPT, issues, commits, or logs.
+Do not run the combined **Sign native ESTUDIAX releases** workflow expecting it to work without the platform-specific paid certificates/accounts it requires.
