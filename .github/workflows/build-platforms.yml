@@ -167,6 +167,8 @@ jobs:
         with:
           path: dist
           merge-multiple: true
+      - name: Generate SHA-256 checksums
+        run: cd dist && sha256sum * > SHA256SUMS.txt
       - name: Create rolling prerelease and attach successful build artifacts
         env:
           GH_TOKEN: ${{ github.token }}
