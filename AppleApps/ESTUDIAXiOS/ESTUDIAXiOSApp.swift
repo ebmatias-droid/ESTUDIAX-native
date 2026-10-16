@@ -43,7 +43,11 @@ private struct MobileHomeView: View {
                     Text("Bienvenido a ESTUDIAX").font(.title.bold())
                     Text("Tus tareas y tarjetas se guardan en este dispositivo. No necesitas una cuenta ni conexión para usar las funciones locales. La IA y Google Drive serán opciones en línea separadas.")
                         .multilineTextAlignment(.center).font(.callout)
-                    HStack(spacing: 16) {\n                        Link("Términos", destination: URL(string: "https://estudiax.higgsfield.app/terms")!)\n                        Link("Privacidad", destination: URL(string: "https://estudiax.higgsfield.app/privacy")!)\n                    }.font(.footnote)\n                    Button("Aceptar condiciones y continuar") { accepted = true }
+                    HStack(spacing: 16) {
+                        Link("Términos", destination: URL(string: "https://estudiax.higgsfield.app/terms")!)
+                        Link("Privacidad", destination: URL(string: "https://estudiax.higgsfield.app/privacy")!)
+                    }.font(.footnote)
+                    Button("Aceptar condiciones y continuar") { accepted = true }
                         .buttonStyle(.borderedProminent)
                 }.padding(28)
             } else {
