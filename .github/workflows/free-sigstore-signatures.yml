@@ -15,6 +15,7 @@ permissions:
 
 jobs:
   sign-release-assets:
+    if: github.ref == 'refs/heads/main'
     name: Sign non-Apple release assets with keyless Sigstore
     runs-on: ubuntu-latest
     steps:
