@@ -2,6 +2,7 @@ package app.estudiax.android
 
 import android.app.Activity
 import android.app.AlertDialog
+import android.app.DatePickerDialog
 import android.app.AlarmManager
 import android.app.PendingIntent
 import android.content.Intent
@@ -108,12 +109,32 @@ class MainActivity : Activity() {
         body.addView(text("Nueva tarea", 18f, true))
         val title = input("Nombre de la tarea"); body.addView(title)
         val subject = input("Materia"); body.addView(subject)
-        val due = input("Fecha de entrega (AAAA-MM-DD, opcional)"); body.addView(due)
+        val due = input("Fecha de entrega (opcional)")
+        due.isFocusable = false
+        due.isFocusableInTouchMode = false
+        due.isClickable = true
+        due.setOnClickListener {
+            val now = Calendar.getInstance()
+            DatePickerDialog(this, { _, year, month, day ->
+                due.setText(String.format(Locale.US, "%04d-%02d-%02d", year, month + 1, day))
+            }, now.get(Calendar.YEAR), now.get(Calendar.MONTH), now.get(Calendar.DAY_OF_MONTH)).show()
+        }
+        body.addView(due)
+        body.addView(button("Quitar fecha") { due.setText("") })
         body.addView(button("＋ Añadir tarea") {
             val v = title.text.toString().trim()
             if (v.isNotEmpty()) {
-                tasks.add(JSONObject().put("id", System.currentTimeMillis().toString()).put("title", v)
-                    .put("subject", subject.text.toString().trim()).put("due", due.text.toString().trim()).put("done", false))
+                val dueText = due.text.toString().trim()
+                val validDue = dueText.isBlank() || try {
+                    val parser = SimpleDateFormat("yyyy-MM-dd", Locale.US).apply { isLenient = false }
+                    parser.parse(dueText) != null
+                } catch (_: Exception) { false }
+                if (!validDue) {
+                    due.error = "Selecciona una fecha válida"
+                    return@button
+                }
+                tasks.add(JSONObject().put("id", java.util.UUID.randomUUID().toString()).put("title", v)
+                    .put("subject", subject.text.toString().trim()).put("due", dueText).put("done", false))
                 save(); scheduleReminder(tasks.last()); renderView()
             }
         })
@@ -130,7 +151,7 @@ class MainActivity : Activity() {
             row.addView(text(task.optString("title") + "\n" + task.optString("subject", "Sin materia") +
                 (if (task.optString("due").isNotBlank()) "\nEntrega: " + task.optString("due") else ""), 14f),
                 LinearLayout.LayoutParams(0, -2, 1f))
-            row.addView(button("×") { tasks.removeAt(index); save(); renderView() })
+            row.addView(button("×") { cancelReminder(task); tasks.removeAt(index); save(); renderView() })
             body.addView(row)
         }
     }
@@ -198,7 +219,7 @@ class MainActivity : Activity() {
         if (task.optBoolean("done")) return
         val due = task.optString("due")
         if (due.isBlank()) return
-        val parsed = try { SimpleDateFormat("yyyy-MM-dd", Locale.US).parse(due) } catch (_: Exception) { null } ?: return
+        val parsed = try { SimpleDateFormat("yyyy-MM-dd", Locale.US).apply { isLenient = false }.parse(due) } catch (_: Exception) { null } ?: return
         val reminder = Calendar.getInstance().apply {
             time = parsed
             add(Calendar.DAY_OF_MONTH, -1)
