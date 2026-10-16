@@ -100,6 +100,8 @@ private final class WatchSyncReceiver: NSObject, ObservableObject, WCSessionDele
         if activationState == .activated { receive(session.receivedApplicationContext) }
     }
     func session(_ session: WCSession, didReceiveApplicationContext applicationContext: [String: Any]) { receive(applicationContext) }
+    func sessionDidBecomeInactive(_ session: WCSession) {}
+    func sessionDidDeactivate(_ session: WCSession) { session.activate() }
     private func receive(_ context: [String: Any]) {
         guard let raw = context["events"] as? [[String: Any]] else { return }
         let list: [WatchEvent] = raw.compactMap { item in
