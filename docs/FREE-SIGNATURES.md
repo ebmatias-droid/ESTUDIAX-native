@@ -1,31 +1,33 @@
 # Free release integrity signatures (non-Apple)
 
-This workflow uses Sigstore keyless signing through GitHub Actions OIDC. It requires no paid certificate and no long-lived private signing key in repository secrets.
+ESTUDIAX uses Sigstore keyless signing through GitHub Actions OIDC. This requires no paid certificate and no long-lived private signing key in repository secrets.
 
 ## Scope
 
-The workflow signs the exact bytes already published for these non-Apple release assets:
+The platform build workflow signs the exact bytes it publishes for these non-Apple release assets:
 - `ESTUDIAX-Android-debug.apk`
 - `ESTUDIAX-Windows-Setup.exe`
 - `ESTUDIAX-Linux.AppImage`
 - `ESTUDIAX-Linux.deb`
 
-It deliberately does not sign the macOS DMG, per the project's current scope. It does not rebuild, change, or replace any app package.
+The signatures are published as matching `.sigstore.json` bundles beside the files. The CI generates a fresh bundle whenever it publishes a new build. The separate **Free verifiable signatures (Sigstore)** workflow can be run manually to sign the current assets on an existing release. Neither workflow applies Apple's Developer ID signing or notarization.
 
-## Run it
+## Verify
 
-1. Open **Actions → Free verifiable signatures (Sigstore) → Run workflow**.
-2. Enter an existing release tag (normally `continuous`).
-3. Confirm the run succeeds and the four `.sigstore.json` bundles appear beside the original assets in that GitHub Release.
+1. Download the asset and its matching `.sigstore.json` bundle from the same GitHub Release.
+2. Install Cosign from the official Sigstore instructions: https://docs.sigstore.dev/cosign/system_config/installation/.
+3. Verify the blob using Cosign's bundle verification instructions: https://docs.sigstore.dev/cosign/verifying/verify/.
+4. Confirm the certificate identity matches the expected ESTUDIAX repository workflow and GitHub Actions OIDC issuer. Do not trust a bundle solely because a file with that name exists.
+
+Also compare the file's SHA-256 digest with `SHA256SUMS.txt` from the same release. A checksum detects accidental or malicious changes only if the checksum file itself is obtained from a trusted source; it is not a signature.
 
 ## What this does and does not mean
 
-- A successful bundle provides a verifiable, transparency-log-backed signature for the exact downloaded file and identifies the GitHub Actions workflow identity that signed it.
-- This is free and helps detect tampering and establish provenance.
-- It is **not** an Android APK release signature or a Windows Authenticode signature. It will not remove Android installer warnings or Windows SmartScreen warnings.
-- Linux AppImage and DEB packages also have Sigstore bundles; this does not automatically install them through a signed Linux package repository.
-- The current Android debug APK remains a test build, not a Play Store release. To create a native Android release-signed APK, create a permanent keystore and add it as protected GitHub Actions secrets following [ANDROID-RELEASE-KEY.md](./ANDROID-RELEASE-KEY.md).
+- A valid bundle provides a verifiable signature for the exact downloaded bytes and helps establish the GitHub Actions workflow identity and provenance.
+- It is **not** an Android APK release signature or a Windows Authenticode signature. It does not remove Android installer warnings or Windows SmartScreen warnings.
+- Linux AppImage and DEB packages have Sigstore bundles; this does not automatically create a signed Linux package repository.
+- The current Android `debug` APK remains a test build, not a Play Store release. For a production APK, create a permanent keystore locally and configure the protected GitHub Actions secrets described in [ANDROID-RELEASE-KEY.md](./ANDROID-RELEASE-KEY.md). Never send the keystore or passwords in chat or commit them to Git.
 - Windows Authenticode signing normally needs a code-signing certificate. Do not claim Authenticode signing based on a Sigstore bundle.
-- Sigstore verification requires Cosign and the correct repository/workflow identity. See https://docs.sigstore.dev/cosign/verifying/verify/ for current verification instructions.
+- macOS Developer ID signing and notarization are deliberately outside this workflow.
 
 Never upload signing passwords or private keys to Git, issues, or chat.
