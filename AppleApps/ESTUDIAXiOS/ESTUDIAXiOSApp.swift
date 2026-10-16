@@ -38,6 +38,29 @@ private struct MobileHomeView: View {
         if let data = try? JSONEncoder().encode(value) { cardData = String(decoding: data, as: UTF8.self) }
     }
 
+    /// Keep malformed local values in a private UserDefaults recovery slot
+    /// before resetting them, so the next save cannot silently destroy them.
+    private func recoverMalformedLocalData() {
+        let defaults = UserDefaults.standard
+        let decoder = JSONDecoder()
+
+        if (try? decoder.decode([StudyTask].self, from: Data(taskData.utf8))) == nil {
+            let backupKey = "estudiax.mobile.tasks.recovery.v1"
+            if defaults.object(forKey: backupKey) == nil {
+                defaults.set(taskData, forKey: backupKey)
+            }
+            taskData = "[]"
+        }
+
+        if (try? decoder.decode([MobileCard].self, from: Data(cardData.utf8))) == nil {
+            let backupKey = "estudiax.mobile.cards.recovery.v1"
+            if defaults.object(forKey: backupKey) == nil {
+                defaults.set(cardData, forKey: backupKey)
+            }
+            cardData = "[]"
+        }
+    }
+
     var body: some View {
         Group {
             if !accepted {
@@ -64,7 +87,10 @@ private struct MobileHomeView: View {
                     progressPage.tabItem { Label("Progreso", systemImage: "chart.bar") }.tag(3)
                     settingsPage.tabItem { Label("Ajustes", systemImage: "gearshape") }.tag(4)
                 }.tint(.blue)
-                    .onAppear { PhoneWatchSync.shared.publish(tasks) }
+                    .onAppear {
+                        recoverMalformedLocalData()
+                        PhoneWatchSync.shared.publish(tasks)
+                    }
             }
         }
     }
