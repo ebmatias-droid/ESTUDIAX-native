@@ -11,6 +11,7 @@ on:
 
 permissions:
   contents: write
+  id-token: write
 
 jobs:
   android-release:
@@ -41,9 +42,11 @@ jobs:
           ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
           ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
           ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+          ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
         run: |
           set -euo pipefail
-          printf '%s' "${{ secrets.ANDROID_KEYSTORE_BASE64 }}" | base64 --decode > "$ANDROID_KEYSTORE_PATH"
+          trap 'rm -f "$ANDROID_KEYSTORE_PATH"' EXIT
+          printf '%s' "$ANDROID_KEYSTORE_BASE64" | base64 --decode > "$ANDROID_KEYSTORE_PATH"
           gradle -p android clean assembleRelease
           APK=android/app/build/outputs/apk/release/app-release.apk
           test -s "$APK"
@@ -51,8 +54,13 @@ jobs:
           test -x "$APKSIGNER"
           "$APKSIGNER" verify --verbose --print-certs "$APK"
           cp "$APK" ESTUDIAX-Android.apk
-      - name: Upload signed APK to existing release
+          sha256sum ESTUDIAX-Android.apk > ESTUDIAX-Android.apk.sha256
+      - name: Install Cosign
+        uses: sigstore/cosign-installer@v3.9.2
+      - name: Create Sigstore provenance bundle for the release-signed APK
+        run: cosign sign-blob --yes --bundle ESTUDIAX-Android.apk.sigstore.json ESTUDIAX-Android.apk
+      - name: Upload signed APK, checksum, and Sigstore bundle
         env:
           GH_TOKEN: ${{ github.token }}
           TAG: ${{ inputs.release_tag }}
-        run: gh release upload "$TAG" ESTUDIAX-Android.apk --repo "${{ github.repository }}" --clobber
+        run: gh release upload "$TAG" ESTUDIAX-Android.apk ESTUDIAX-Android.apk.sha256 ESTUDIAX-Android.apk.sigstore.json --repo "${{ github.repository }}" --clobber
