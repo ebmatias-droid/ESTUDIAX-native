@@ -162,7 +162,13 @@ private struct MobileHomeView: View {
                     Button("Borrar datos locales",role:.destructive) { taskData="[]";cardData="[]";PhoneWatchSync.shared.publish([]) }
                 }
                 Section("Servicios opcionales") {
-                    Text("La IA y Google Drive requieren una integración configurada. Esta versión nativa no se conecta automáticamente al servidor.")
+                    Text("La IA, los exámenes inteligentes y Google Drive solo se conectan cuando eliges abrirlos. Esta app no hace llamadas de red al iniciar.")
+                    Button("Abrir ESTUDIAX Web · IA y Google Drive") {
+                        if let url = URL(string: "https://estudiax.higgsfield.app") {
+                            UIApplication.shared.open(url)
+                        }
+                    }
+                    Link("Código fuente", destination: URL(string: "https://github.com/ebmatias-droid/ESTUDIAX-native")!)
                 }
             }.navigationTitle("Ajustes")
         }
