@@ -10,8 +10,11 @@ public actor LocalTaskStore {
             self.fileURL = fileURL
         } else {
             let fileManager = FileManager.default
+            // Application Support is available across Apple platforms. Keep a
+            // portable fallback for unusual environments without relying on
+            // macOS-only homeDirectoryForCurrentUser.
             let support = fileManager.urls(for: .applicationSupportDirectory, in: .userDomainMask).first
-                ?? fileManager.homeDirectoryForCurrentUser.appendingPathComponent("Library/Application Support", isDirectory: true)
+                ?? fileManager.temporaryDirectory.appendingPathComponent("Application Support", isDirectory: true)
             let directory = support.appendingPathComponent("ESTUDIAX", isDirectory: true)
             try? fileManager.createDirectory(at: directory, withIntermediateDirectories: true)
             self.fileURL = directory.appendingPathComponent("tasks.json")
