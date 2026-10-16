@@ -1,4 +1,4 @@
-name: macOS build
+name: macOS build and tests
 
 on:
   push:
@@ -12,21 +12,9 @@ jobs:
     runs-on: macos-14
     steps:
       - uses: actions/checkout@v4
-      - name: Select Swift
+      - name: Show Swift version
         run: swift --version
-      - name: Build
-        run: swift build -v
-      - name: Test
-        run: swift test -v
-      - name: Package app executable for testing
-        if: github.event_name == 'workflow_dispatch'
-        run: |
-          mkdir -p .build-artifacts
-          swift build -c release
-          tar -czf .build-artifacts/ESTUDIAX-macos-source-build.tar.gz -C .build/release ESTUDIAX
-      - name: Upload test build
-        if: github.event_name == 'workflow_dispatch'
-        uses: actions/upload-artifact@v4
-        with:
-          name: ESTUDIAX-macos-test-build
-          path: .build-artifacts/*
+      - name: Build local-first app
+        run: swift build
+      - name: Run core tests
+        run: swift test
