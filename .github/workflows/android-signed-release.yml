@@ -36,6 +36,8 @@ jobs:
           for name in KEYSTORE_BASE64 STORE_PASSWORD KEY_ALIAS KEY_PASSWORD; do
             if [ -z "${!name}" ]; then echo "::error::Missing GitHub Actions secret: $name. Follow docs/ANDROID-RELEASE-KEY.md."; exit 1; fi
           done
+      - name: Run Android unit tests and lint
+        run: gradle -p android testDebugUnitTest lintDebug
       - name: Build and verify signed APK
         env:
           ANDROID_KEYSTORE_PATH: ${{ runner.temp }}/estudiax-release.jks
