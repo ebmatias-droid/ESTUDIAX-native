@@ -79,7 +79,6 @@ jobs:
           chmod +x package/ESTUDIAX.app/Contents/MacOS/ESTUDIAX
           codesign --force --options runtime --timestamp --sign "$IDENTITY" package/ESTUDIAX.app
           codesign --verify --deep --strict --verbose=2 package/ESTUDIAX.app
-          spctl --assess --type execute --verbose=2 package/ESTUDIAX.app
           hdiutil create -volname ESTUDIAX -srcfolder package -ov -format UDZO ESTUDIAX-macOS.dmg
           hdiutil verify ESTUDIAX-macOS.dmg
       - name: Notarize and staple DMG
@@ -91,6 +90,7 @@ jobs:
           xcrun notarytool submit ESTUDIAX-macOS.dmg --apple-id "$APPLE_ID" --password "$APPLE_PASSWORD" --team-id "$TEAM_ID" --wait
           xcrun stapler staple ESTUDIAX-macOS.dmg
           xcrun stapler validate ESTUDIAX-macOS.dmg
+          spctl --assess --type open --context context:primary-signature --verbose=2 ESTUDIAX-macOS.dmg
       - name: Replace macOS release asset with signed DMG
         env:
           GH_TOKEN: ${{ github.token }}
@@ -189,7 +189,7 @@ jobs:
           for f in dist/ESTUDIAX-Linux.AppImage dist/ESTUDIAX-Linux.deb; do
             gpg --batch --yes --pinentry-mode loopback --passphrase "$GPG_PASSPHRASE" --armor --detach-sign "$f"
           done
-          cd dist && sha256sum ESTUDIAX-Linux.AppImage ESTUDIAX-Linux.deb > SHA256SUMS-signed.txt
+          (cd dist && sha256sum ESTUDIAX-Linux.AppImage ESTUDIAX-Linux.deb > SHA256SUMS-signed.txt)
           gpg --batch --yes --pinentry-mode loopback --passphrase "$GPG_PASSPHRASE" --armor --detach-sign dist/SHA256SUMS-signed.txt
       - name: Upload Linux signatures
         env:
