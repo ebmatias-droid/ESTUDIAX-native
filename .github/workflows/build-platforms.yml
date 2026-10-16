@@ -31,7 +31,7 @@ jobs:
         run: swift build -c release
       - name: Create DMG
         run: |
-          mkdir -p package/ESTUDIAX.app/Contents/MacOS
+          mkdir -p package/ESTUDIAX.app/Contents/MacOS package/ESTUDIAX.app/Contents/Resources
           cp .build/release/ESTUDIAX package/ESTUDIAX.app/Contents/MacOS/ESTUDIAX
           cat > package/ESTUDIAX.app/Contents/Info.plist <<'PLIST'
           <?xml version="1.0" encoding="UTF-8"?>
