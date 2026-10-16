@@ -121,7 +121,8 @@ private struct HomeView: View {
     private func toggle(_ task: StudyTask) {
         var updated = task
         updated.isCompleted.toggle()
-        Task { try? await store.save(updated); await reload() }
+        let taskToSave = updated
+        Task { try? await store.save(taskToSave); await reload() }
     }
 
     private func delete(_ task: StudyTask) {
