@@ -243,7 +243,7 @@ class MainActivity : Activity() {
             startActivity(Intent(Intent.ACTION_VIEW, Uri.parse("https://estudiax.higgsfield.app")))
         })
         body.addView(button("Ver términos y privacidad") {
-            startActivity(Intent(Intent.ACTION_VIEW, Uri.parse("https://estudiax.higgsfield.app")))
+            startActivity(Intent(Intent.ACTION_VIEW, Uri.parse("https://estudiax.higgsfield.app/privacy")))
         })
     }
 }
