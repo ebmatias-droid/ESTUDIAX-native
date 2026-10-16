@@ -54,6 +54,7 @@ private struct MobileHomeView: View {
                     progressPage.tabItem { Label("Progreso", systemImage: "chart.bar") }.tag(3)
                     settingsPage.tabItem { Label("Ajustes", systemImage: "gearshape") }.tag(4)
                 }.tint(.blue)
+                    .onAppear { PhoneWatchSync.shared.publish(tasks) }
             }
         }
     }
