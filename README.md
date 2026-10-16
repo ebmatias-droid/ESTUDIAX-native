@@ -17,7 +17,7 @@ Local-first study tools for desktop and Android. The original website remains av
 
 ## Production readiness
 
-See [docs/PRODUCTION-READINESS.md](docs/PRODUCTION-READINESS.md) for the device-test checklist, signing/notarization requirements, and the exact limitations of current native clients.
+See [docs/PRODUCTION-READINESS.md](docs/PRODUCTION-READINESS.md) for device-test requirements and [docs/SIGNING-SETUP.md](docs/SIGNING-SETUP.md) for the signing workflow, required protected GitHub Actions secrets, and release steps. The workflow is ready to run after the project owner configures the platform certificates and signing keys; no private credentials are stored in this repository.
 
 ## Build
 ```sh
