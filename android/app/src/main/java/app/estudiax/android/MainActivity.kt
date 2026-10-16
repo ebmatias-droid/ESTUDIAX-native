@@ -2,8 +2,12 @@ package app.estudiax.android
 
 import android.app.Activity
 import android.app.AlertDialog
+import android.app.AlarmManager
+import android.app.PendingIntent
 import android.content.Intent
+import android.content.pm.PackageManager
 import android.net.Uri
+import android.os.Build
 import android.os.Bundle
 import android.graphics.Color
 import android.graphics.Typeface
@@ -11,6 +15,9 @@ import android.view.Gravity
 import android.widget.*
 import org.json.JSONArray
 import org.json.JSONObject
+import java.text.SimpleDateFormat
+import java.util.Calendar
+import java.util.Locale
 
 class MainActivity : Activity() {
     private val prefs by lazy { getSharedPreferences("estudiax_local", MODE_PRIVATE) }
@@ -107,16 +114,17 @@ class MainActivity : Activity() {
             if (v.isNotEmpty()) {
                 tasks.add(JSONObject().put("id", System.currentTimeMillis().toString()).put("title", v)
                     .put("subject", subject.text.toString().trim()).put("due", due.text.toString().trim()).put("done", false))
-                save(); renderView()
+                save(); scheduleReminder(tasks.last()); renderView()
             }
         })
+        body.addView(button("Activar recordatorios locales") { requestReminderPermission() })
         body.addView(text("Mis tareas", 18f, true))
         if (tasks.isEmpty()) body.addView(text("Aún no tienes tareas.", 14f).apply { setTextColor(muted) })
         tasks.forEachIndexed { index, task ->
             val row = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL }
             val cb = CheckBox(this).apply {
                 isChecked = task.optBoolean("done")
-                setOnCheckedChangeListener { _, checked -> task.put("done", checked); save(); renderView() }
+                setOnCheckedChangeListener { _, checked -> task.put("done", checked); save(); if (checked) cancelReminder(task) else scheduleReminder(task); renderView() }
             }
             row.addView(cb)
             row.addView(text(task.optString("title") + "\n" + task.optString("subject", "Sin materia") +
@@ -168,6 +176,49 @@ class MainActivity : Activity() {
         body.addView(text("El progreso se calcula localmente.", 13f).apply { setTextColor(muted) })
     }
 
+
+    private fun requestReminderPermission() {
+        if (Build.VERSION.SDK_INT >= 33 && checkSelfPermission(android.Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) {
+            requestPermissions(arrayOf(android.Manifest.permission.POST_NOTIFICATIONS), 4102)
+        } else {
+            tasks.filter { !it.optBoolean("done") }.forEach { scheduleReminder(it) }
+            Toast.makeText(this, "Recordatorios locales activados", Toast.LENGTH_SHORT).show()
+        }
+    }
+
+    override fun onRequestPermissionsResult(requestCode: Int, permissions: Array<out String>, grantResults: IntArray) {
+        super.onRequestPermissionsResult(requestCode, permissions, grantResults)
+        if (requestCode == 4102 && grantResults.firstOrNull() == PackageManager.PERMISSION_GRANTED) {
+            tasks.filter { !it.optBoolean("done") }.forEach { scheduleReminder(it) }
+            Toast.makeText(this, "Recordatorios locales activados", Toast.LENGTH_SHORT).show()
+        }
+    }
+
+    private fun scheduleReminder(task: JSONObject) {
+        if (task.optBoolean("done")) return
+        val due = task.optString("due")
+        if (due.isBlank()) return
+        val parsed = try { SimpleDateFormat("yyyy-MM-dd", Locale.US).parse(due) } catch (_: Exception) { null } ?: return
+        val reminder = Calendar.getInstance().apply {
+            time = parsed
+            add(Calendar.DAY_OF_MONTH, -1)
+            set(Calendar.HOUR_OF_DAY, 9); set(Calendar.MINUTE, 0); set(Calendar.SECOND, 0); set(Calendar.MILLISECOND, 0)
+        }
+        if (reminder.timeInMillis <= System.currentTimeMillis()) return
+        if (Build.VERSION.SDK_INT >= 33 && checkSelfPermission(android.Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) return
+        val intent = Intent(this, ReminderReceiver::class.java).putExtra("title", task.optString("title"))
+        val code = task.optString("id").hashCode()
+        val pending = PendingIntent.getBroadcast(this, code, intent, PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE)
+        val alarm = getSystemService(ALARM_SERVICE) as AlarmManager
+        alarm.setAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, reminder.timeInMillis, pending)
+    }
+
+    private fun cancelReminder(task: JSONObject) {
+        val intent = Intent(this, ReminderReceiver::class.java)
+        val pending = PendingIntent.getBroadcast(this, task.optString("id").hashCode(), intent, PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE)
+        (getSystemService(ALARM_SERVICE) as AlarmManager).cancel(pending)
+    }
+
     private fun renderSettings() {
         body.addView(text("Privacidad", 18f, true))
         body.addView(text("Sin cuenta obligatoria ni solicitudes de red al iniciar. Los datos de estudio permanecen en este dispositivo.", 14f).apply { setTextColor(muted) })
@@ -185,6 +236,7 @@ class MainActivity : Activity() {
                     tasks.clear(); cards.clear(); save(); renderView()
                 }.show()
         })
+        body.addView(button("Activar recordatorios locales") { requestReminderPermission() })
         body.addView(text("Funciones en línea opcionales", 18f, true))
         body.addView(text("La IA y Google Drive se abren solo si tú pulsas uno de estos accesos. No se envían tareas automáticamente.", 13f).apply { setTextColor(muted) })
         body.addView(button("Abrir ESTUDIAX Web · IA y Google Drive") {
