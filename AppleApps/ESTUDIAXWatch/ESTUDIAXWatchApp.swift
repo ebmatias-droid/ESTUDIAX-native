@@ -100,6 +100,12 @@ private final class WatchSyncReceiver: NSObject, ObservableObject, WCSessionDele
         if activationState == .activated { receive(session.receivedApplicationContext) }
     }
     func session(_ session: WCSession, didReceiveApplicationContext applicationContext: [String: Any]) { receive(applicationContext) }
+#if os(iOS)
+    // The watch app target is embedded by the iOS scheme during simulator builds;
+    // these delegate callbacks exist on iOS but are unavailable on watchOS.
+    func sessionDidBecomeInactive(_ session: WCSession) {}
+    func sessionDidDeactivate(_ session: WCSession) { session.activate() }
+#endif
     private func receive(_ context: [String: Any]) {
         guard let raw = context["events"] as? [[String: Any]] else { return }
         let list: [WatchEvent] = raw.compactMap { item in
