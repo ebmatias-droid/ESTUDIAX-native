@@ -47,14 +47,16 @@ final class LocalTaskStoreTests: XCTestCase {
         try Data("{not valid json".utf8).write(to: fileURL)
 
         let store = LocalTaskStore(fileURL: fileURL)
-        XCTAssertTrue(await store.allTasks().isEmpty)
+        let emptyTasks = await store.allTasks()
+        XCTAssertTrue(emptyTasks.isEmpty)
         XCTAssertFalse(FileManager.default.fileExists(atPath: fileURL.path))
 
         let files = try FileManager.default.contentsOfDirectory(atPath: directory.path)
         XCTAssertTrue(files.contains(where: { $0.hasPrefix("tasks-corrupt-") && $0.hasSuffix(".json") }))
 
         try await store.save(StudyTask(title: "Datos recuperados"))
-        XCTAssertEqual(await store.allTasks().count, 1)
+        let recoveredTasks = await store.allTasks()
+        XCTAssertEqual(recoveredTasks.count, 1)
     }
 
     func testDeletePersistsAcrossStoreInstances() async throws {
