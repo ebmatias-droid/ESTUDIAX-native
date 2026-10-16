@@ -15,6 +15,10 @@ Local-first study tools for desktop and Android. The original website remains av
 - AI and Google Drive are optional and should connect only on explicit action.
 - No Turnstile/CAPTCHA in native startup; no API secrets inside app bundles.
 
+## Production readiness
+
+See [docs/PRODUCTION-READINESS.md](docs/PRODUCTION-READINESS.md) for the device-test checklist, signing/notarization requirements, and the exact limitations of current native clients.
+
 ## Build
 ```sh
 swift test && swift build -c release
