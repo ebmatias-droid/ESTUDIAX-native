@@ -17,14 +17,14 @@ private enum StudySection: String, CaseIterable, Identifiable {
     var id: String { rawValue }
     var symbol: String {
         switch self {
-        case .dashboard: "rectangle.grid.1x2"
-        case .tasks: "checklist"
-        case .calendar: "calendar"
-        case .cards: "rectangle.stack"
-        case .exam: "checkmark.seal"
-        case .tutor: "book"
-        case .progress: "chart.bar"
-        case .settings: "hand.raised"
+        case .dashboard: return "rectangle.grid.1x2"
+        case .tasks: return "checklist"
+        case .calendar: return "calendar"
+        case .cards: return "rectangle.stack"
+        case .exam: return "checkmark.seal"
+        case .tutor: return "book"
+        case .progress: return "chart.bar"
+        case .settings: return "hand.raised"
         }
     }
 }
