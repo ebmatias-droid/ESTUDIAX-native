@@ -17,6 +17,9 @@ jobs:
     runs-on: macos-14
     steps:
       - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
       - name: Generate app icons
         run: |
           python3 -m pip install --user pillow
@@ -52,6 +55,9 @@ jobs:
     runs-on: macos-15
     steps:
       - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
       - uses: maxim-lobanov/setup-xcode@v1
         with:
           xcode-version: "16.4"
