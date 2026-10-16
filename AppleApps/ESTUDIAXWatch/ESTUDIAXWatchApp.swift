@@ -51,7 +51,14 @@ private struct WatchCalendarView: View {
                 }
             }.navigationTitle("ESTUDIAX")
                 .onAppear { sync.activate() }
-                .onChange(of: sync.eventsJSON) { _, value in if value != "[]" { eventData = value } }
+                .onChange(of: sync.eventsJSON) { _, value in
+                    if value != "[]" {
+                        eventData = value
+                        if reminderEnabled, let data = value.data(using: .utf8), let synced = try? JSONDecoder().decode([WatchEvent].self, from: data) {
+                            for event in synced { schedule(event) }
+                        }
+                    }
+                }
         }
     }
 
