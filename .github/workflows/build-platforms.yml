@@ -9,6 +9,9 @@ on:
     types: [published]
 permissions:
   contents: write
+concurrency:
+  group: estudiax-platform-build-${{ github.ref }}
+  cancel-in-progress: true
 jobs:
   macos:
     runs-on: macos-14
