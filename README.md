@@ -1,48 +1,25 @@
-# ESTUDIAX Native
+# ESTUDIAX Native & Desktop
 
-Aplicación de estudio **local-first** de ESTUDIAX. El sitio web original seguirá existiendo por separado.
+Local-first study tools for desktop and Android. The original website remains available at https://estudiax.higgsfield.app.
 
-## Objetivos de plataforma
+## Current implementations
+- `Sources/`: SwiftUI macOS starter and Swift local-storage core.
+- `desktop/`: Tauri desktop app for Windows/Linux: local tasks, calendar, flashcards, progress, data export/deletion.
+- `android/`: Kotlin app for Android: local tasks, a daily calendar view and progress.
+- `docs/`: privacy architecture and honest platform roadmap.
 
-- **macOS:** app SwiftUI, distribución prevista como DMG.
-- **iPhone/iPad:** experiencia web instalable mediante «Añadir a pantalla de inicio»; una app nativa podrá evaluarse después.
-- **Windows y Linux:** cliente de escritorio multiplataforma planificado, con paquetes propios por sistema.
-- **Android:** APK planificado.
-- **Web:** permanece disponible en https://estudiax.higgsfield.app.
+## Privacy contract
+- No required account or network request on startup.
+- Local study data stays on device.
+- Terms are stored locally by terms version.
+- AI and Google Drive are optional and should connect only on explicit action.
+- No Turnstile/CAPTCHA in native startup; no API secrets inside app bundles.
 
-## Principios de privacidad
-
-1. Las funciones esenciales deben funcionar sin conexión.
-2. Tareas, tarjetas, progreso y preferencias se guardan localmente.
-3. No se requiere cuenta ni conexión al servidor para abrir y usar las funciones locales.
-4. Los términos y el aviso de privacidad se muestran una sola vez por instalación; la app guarda localmente que el usuario los aceptó. Los cambios materiales podrán requerir una nueva aceptación.
-5. IA y Google Drive son integraciones opcionales que se conectan solo cuando el usuario las usa.
-6. No incluir Turnstile, CAPTCHA ni credenciales de servidor en el arranque de la app.
-7. No incrustar claves secretas de Groq/OpenAI en el ejecutable. Las claves personales, si se admiten, deben almacenarse en el llavero seguro del sistema.
-8. Las solicitudes en línea deben ser explícitas, mínimas y documentadas. No telemetría obligatoria.
-
-## Estado
-
-Este repositorio inicia la base de la app macOS y documenta la arquitectura multiplataforma. Los instaladores de Windows/Linux/Android y el DMG solo deben publicarse después de que sus builds y pruebas pasen en CI; no se deben presentar artefactos de prueba como versiones estables.
-
-## Desarrollo macOS
-
-Requisitos: macOS y Swift 5.9 o posterior.
-
+## Build
 ```sh
-swift build
-swift run
-```
+swift test && swift build -c release
+cd desktop && npm install && npm run tauri -- build
+gradle -p android assembleDebug
+``
 
-También se puede abrir `Package.swift` directamente en Xcode.
-
-## Estructura
-
-- `Sources/ESTUDIAX/`: interfaz macOS.
-- `Sources/ESTUDIAXCore/`: modelos y almacenamiento local.
-- `Tests/`: pruebas del núcleo.
-- `.github/workflows/`: automatización de compilación.
-
-## Licencia
-
-La licencia se elegirá antes de una publicación pública. No se debe asumir que el repositorio privado actual ya tiene licencia open-source.
+GitHub Actions creates installable test artifacts. The Android APK is debug-signed. The macOS DMG is unsigned and unnotarized; Windows installers are not code-signed. These artifacts are for testing and are not equivalent to store-ready releases. iOS/iPadOS and watchOS require Xcode targets, device testing, and Apple signing, which are not yet included in the release workflow.
