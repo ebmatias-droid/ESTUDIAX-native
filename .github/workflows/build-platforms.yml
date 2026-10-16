@@ -152,7 +152,7 @@ jobs:
           path: ESTUDIAX-*
 
   publish-continuous:
-    if: (github.event_name == 'push' || github.event_name == 'workflow_dispatch') && needs.android.result == 'success' && needs.desktop.result == 'success'
+    if: github.ref == 'refs/heads/main' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch') && needs.android.result == 'success' && needs.desktop.result == 'success'
     needs: [android, desktop]
     permissions:
       contents: write
@@ -257,7 +257,7 @@ jobs:
         run: gh release upload "$TAG" dist/* --repo "${{ github.repository }}" --clobber
 
   publish-apple-preview:
-    if: (github.event_name == 'push' || github.event_name == 'workflow_dispatch') && needs.macos.result == 'success'
+    if: github.ref == 'refs/heads/main' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch') && needs.macos.result == 'success'
     needs: [macos]
     permissions:
       contents: write
