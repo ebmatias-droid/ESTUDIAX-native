@@ -36,8 +36,20 @@ class MainActivity : Activity() {
         super.onCreate(savedInstanceState)
         window.statusBarColor = bg
         window.navigationBarColor = bg
-        JSONArray(prefs.getString("tasks", "[]") ?: "[]").let { a -> for (i in 0 until a.length()) tasks.add(a.getJSONObject(i)) }
-        JSONArray(prefs.getString("cards", "[]") ?: "[]").let { a -> for (i in 0 until a.length()) cards.add(a.getJSONObject(i)) }
+        // Recover gracefully if local preferences are interrupted or malformed.
+        // Never crash the whole app while loading user-owned local study data.
+        try {
+            JSONArray(prefs.getString("tasks", "[]") ?: "[]").let { a -> for (i in 0 until a.length()) tasks.add(a.getJSONObject(i)) }
+        } catch (_: Exception) {
+            tasks.clear()
+            prefs.edit().remove("tasks").apply()
+        }
+        try {
+            JSONArray(prefs.getString("cards", "[]") ?: "[]").let { a -> for (i in 0 until a.length()) cards.add(a.getJSONObject(i)) }
+        } catch (_: Exception) {
+            cards.clear()
+            prefs.edit().remove("cards").apply()
+        }
         if (!prefs.getBoolean("accepted_terms_v1", false)) showConsent() else showHome()
     }
 
