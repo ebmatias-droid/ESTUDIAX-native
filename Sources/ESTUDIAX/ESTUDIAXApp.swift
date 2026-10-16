@@ -34,9 +34,9 @@ private struct FirstLaunchView: View {
             Text("Tus tareas, tarjetas y progreso se guardan en este Mac. La app no necesita conectarse a un servidor para abrirse ni para usar sus funciones locales.")
                 .multilineTextAlignment(.center).frame(maxWidth: 500)
             HStack {
-                Link("Términos", destination: URL(string: "https://estudiax.higgsfield.app")!)
+                Link("Términos", destination: URL(string: "https://estudiax.higgsfield.app/terms")!)
                 Text("·")
-                Link("Aviso de privacidad", destination: URL(string: "https://estudiax.higgsfield.app")!)
+                Link("Aviso de privacidad", destination: URL(string: "https://estudiax.higgsfield.app/privacy")!)
             }.font(.callout)
             Toggle("He leído y acepto los términos y el aviso de privacidad.", isOn: $checked)
                 .toggleStyle(.checkbox).frame(maxWidth: 500)
