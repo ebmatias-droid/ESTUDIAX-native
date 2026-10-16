@@ -153,6 +153,7 @@ jobs:
     needs: [android, desktop]
     permissions:
       contents: write
+      id-token: write
     runs-on: ubuntu-latest
     steps:
       - uses: actions/download-artifact@v4
@@ -172,6 +173,14 @@ jobs:
           merge-multiple: true
       - name: Generate SHA-256 checksums
         run: cd dist && sha256sum * > SHA256SUMS.txt
+      - name: Install Cosign
+        uses: sigstore/cosign-installer@v3.9.2
+      - name: Sign Android, Windows, and Linux assets with keyless Sigstore
+        run: |
+          set -euo pipefail
+          for file in dist/ESTUDIAX-Android-debug.apk dist/ESTUDIAX-Windows-Setup.exe dist/ESTUDIAX-Linux.AppImage dist/ESTUDIAX-Linux.deb; do
+            cosign sign-blob --yes --bundle "${file}.sigstore.json" "$file"
+          done
       - name: Create rolling non-Apple prerelease after Android, Windows, and Linux builds pass
         env:
           GH_TOKEN: ${{ github.token }}
@@ -184,6 +193,7 @@ jobs:
     needs: [android, desktop]
     permissions:
       contents: write
+      id-token: write
     runs-on: ubuntu-latest
     steps:
       - uses: actions/download-artifact@v4
@@ -200,6 +210,14 @@ jobs:
           path: dist
       - name: Generate SHA-256 checksums
         run: cd dist && sha256sum * > SHA256SUMS.txt
+      - name: Install Cosign
+        uses: sigstore/cosign-installer@v3.9.2
+      - name: Sign Android, Windows, and Linux assets with keyless Sigstore
+        run: |
+          set -euo pipefail
+          for file in dist/ESTUDIAX-Android-debug.apk dist/ESTUDIAX-Windows-Setup.exe dist/ESTUDIAX-Linux.AppImage dist/ESTUDIAX-Linux.deb; do
+            cosign sign-blob --yes --bundle "${file}.sigstore.json" "$file"
+          done
       - name: Publish non-Apple assets after Android, Windows, and Linux builds pass
         env:
           GH_TOKEN: ${{ github.token }}
