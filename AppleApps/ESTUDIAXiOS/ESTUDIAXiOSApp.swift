@@ -243,9 +243,11 @@ private final class PhoneWatchSync: NSObject, WCSessionDelegate {
     private var latest: [[String: Any]] = []
     private override init() { super.init() }
     func publish(_ tasks: [StudyTask]) {
+        // The Watch companion shows only upcoming, incomplete tasks with due dates.
+        // Re-publishing after completion removes the item from the Watch calendar.
         latest = tasks.compactMap { task in
-            guard let due = task.dueDate else { return nil }
-            return ["id": task.id.uuidString, "title": task.title, "date": due.timeIntervalSince1970, "done": task.isCompleted] as [String: Any]
+            guard !task.isCompleted, let due = task.dueDate else { return nil }
+            return ["id": task.id.uuidString, "title": task.title, "date": due.timeIntervalSince1970] as [String: Any]
         }
         guard WCSession.isSupported() else { return }
         let session = WCSession.default
