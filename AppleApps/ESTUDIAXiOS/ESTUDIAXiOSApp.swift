@@ -1,6 +1,5 @@
 import SwiftUI
 import UIKit
-import ESTUDIAXCore
 
 @main
 struct ESTUDIAXiOSApp: App {
