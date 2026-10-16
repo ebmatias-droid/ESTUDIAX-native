@@ -1,0 +1,59 @@
+name: Import ESTUDIAX website source snapshot
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/import-website-source.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  import-source:
+    name: Verify and import public web source
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: true
+      - name: Download and verify source archive
+        run: |
+          curl --fail --location --retry 3 \
+            "https://d2ol7oe51mr4n9.cloudfront.net/user_3JZJBeBh8hUnj8VSWGLxitbKHCJ/f407e3d4-03be-480e-a99c-ab4ddbb0799a.gz" \
+            --output "$RUNNER_TEMP/estudiax-website-source.tar.gz"
+          echo "675cd264647047d1cbe833d2154b35d5d2d9af7fe250a439c4449265e6c75261  $RUNNER_TEMP/estudiax-website-source.tar.gz" | sha256sum --check
+          tar -tzf "$RUNNER_TEMP/estudiax-website-source.tar.gz" | grep -q '^website/app/src/routes/index.tsx$'
+      - name: Extract source into website/
+        run: |
+          tar -xzf "$RUNNER_TEMP/estudiax-website-source.tar.gz" -C .
+          cat > website/README-SNAPSHOT.md <<'EOF'
+          # ESTUDIAX website source snapshot
+
+          This folder contains the public source snapshot for https://estudiax.higgsfield.app, including the app source, UI components, server routes, migrations, configuration, assets, and lockfile.
+
+          ## Build
+
+          Install Bun, then run:
+
+          ```sh
+          cd website/app
+          bun install --frozen-lockfile
+          bun run typecheck
+          bun run build
+          ```
+
+          Configure deployment secrets only in the hosting provider's secret manager. Never commit API keys, OAuth client secrets, certificates, or `.env` files. The live site uses server-side credentials that are intentionally not included in this source snapshot.
+          EOF
+      - name: Commit source snapshot
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add website
+          if git diff --cached --quiet; then
+            echo "Website source already imported."
+          else
+            git commit -m "Import ESTUDIAX website source snapshot"
+            git push
+          fi
