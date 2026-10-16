@@ -48,6 +48,7 @@ final class LocalTaskStoreTests: XCTestCase {
         try await store.delete(id: task.id)
 
         let reloadedStore = LocalTaskStore(fileURL: fileURL)
-        XCTAssertTrue(await reloadedStore.allTasks().isEmpty)
+        let remainingTasks = await reloadedStore.allTasks()
+        XCTAssertTrue(remainingTasks.isEmpty)
     }
 }
