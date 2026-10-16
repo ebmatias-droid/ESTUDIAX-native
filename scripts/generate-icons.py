@@ -19,7 +19,10 @@ def main():
     icon(1024).save(root/"AppIcon-1024.png")
     p=ROOT/"desktop/src-tauri/icons"; p.mkdir(parents=True,exist_ok=True)
     icon(256).save(p/"icon.png"); icon(256).save(p/"icon.ico",sizes=[(256,256),(128,128),(64,64),(48,48),(32,32),(16,16)])
-    for n in (32,128,256): icon(n).save(p/f"{n}x{n}.png")
+    icon(32).save(p/"32x32.png")
+    icon(128).save(p/"128x128.png")
+    icon(256).save(p/"128x128@2x.png")
+    icon(256).save(p/"256x256.png")
     iconset=ROOT/"ESTUDIAX.iconset"; iconset.mkdir(exist_ok=True)
     for size in (16,32,128,256,512):
         icon(size).save(iconset/f"icon_{size}x{size}.png")
