@@ -40,7 +40,17 @@ jobs:
           PLIST
           cp /tmp/ESTUDIAX.icns package/ESTUDIAX.app/Contents/Resources/ESTUDIAX.icns
           printf 'APPL????' > package/ESTUDIAX.app/Contents/PkgInfo
-          hdiutil create -volname ESTUDIAX -srcfolder package/ESTUDIAX.app -ov -format UDZO ESTUDIAX-macOS.dmg
+          # Package the containing directory so the mounted volume contains
+          # ESTUDIAX.app at its root (not just the app bundle's Contents folder).
+          hdiutil create -volname ESTUDIAX -srcfolder package -ov -format UDZO ESTUDIAX-macOS.dmg
+          hdiutil verify ESTUDIAX-macOS.dmg
+          # Smoke-test the actual mounted image before publishing it.
+          mkdir -p "$RUNNER_TEMP/estudiax-dmg-mount"
+          hdiutil attach ESTUDIAX-macOS.dmg -readonly -nobrowse -mountpoint "$RUNNER_TEMP/estudiax-dmg-mount"
+          test -d "$RUNNER_TEMP/estudiax-dmg-mount/ESTUDIAX.app/Contents/MacOS"
+          test -x "$RUNNER_TEMP/estudiax-dmg-mount/ESTUDIAX.app/Contents/MacOS/ESTUDIAX"
+          plutil -lint "$RUNNER_TEMP/estudiax-dmg-mount/ESTUDIAX.app/Contents/Info.plist"
+          hdiutil detach "$RUNNER_TEMP/estudiax-dmg-mount"
       - uses: actions/upload-artifact@v4
         with:
           name: ESTUDIAX-macOS-DMG
