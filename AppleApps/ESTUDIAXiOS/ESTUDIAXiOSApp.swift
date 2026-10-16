@@ -18,6 +18,9 @@ private struct MobileHomeView: View {
     @State private var title = ""
     @State private var subject = ""
     @State private var due = Date()
+    @State private var hasDueDate = true
+    @State private var consentChecked = false
+    @State private var exportFile: ExportFile?
     @State private var front = ""
     @State private var back = ""
     @State private var reveal = Set<String>()
@@ -47,8 +50,11 @@ private struct MobileHomeView: View {
                         Link("Términos", destination: URL(string: "https://estudiax.higgsfield.app/terms")!)
                         Link("Privacidad", destination: URL(string: "https://estudiax.higgsfield.app/privacy")!)
                     }.font(.footnote)
+                    Toggle("He leído y acepto los términos y el aviso de privacidad.", isOn: $consentChecked)
+                        .font(.footnote)
                     Button("Aceptar condiciones y continuar") { accepted = true }
                         .buttonStyle(.borderedProminent)
+                        .disabled(!consentChecked)
                 }.padding(28)
             } else {
                 TabView(selection: $tab) {
@@ -69,12 +75,15 @@ private struct MobileHomeView: View {
                 Section("Nueva tarea") {
                     TextField("Nombre de la tarea", text: $title)
                     TextField("Materia", text: $subject)
-                    DatePicker("Entrega", selection: $due, displayedComponents: .date)
+                    Toggle("Tiene fecha de entrega", isOn: $hasDueDate)
+                    if hasDueDate {
+                        DatePicker("Entrega", selection: $due, displayedComponents: .date)
+                    }
                     Button("Añadir tarea") {
                         guard !title.trimmingCharacters(in: .whitespaces).isEmpty else { return }
                         var updated = tasks
-                        updated.append(StudyTask(title: title.trimmingCharacters(in: .whitespacesAndNewlines), subject: subject, dueDate: due))
-                        saveTasks(updated); title = ""; subject = ""
+                        updated.append(StudyTask(title: title.trimmingCharacters(in: .whitespacesAndNewlines), subject: subject.trimmingCharacters(in: .whitespacesAndNewlines), dueDate: hasDueDate ? due : nil))
+                        saveTasks(updated); title = ""; subject = ""; hasDueDate = true
                     }.disabled(title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
                 }
                 Section("Mis tareas") {
@@ -158,10 +167,14 @@ private struct MobileHomeView: View {
                 Section("Privacidad") {
                     Label("Datos almacenados en este dispositivo",systemImage:"iphone")
                     Label("Sin conexión obligatoria al iniciar",systemImage:"wifi.slash")
-                    Button("Exportar mis datos") {
-                        let payload = ["tasks": taskData, "cards": cardData]
-                        let text = payload.map{"\($0.key): \($0.value)"}.joined(separator:"\n")
-                        UIPasteboard.general.string = text
+                    Button("Exportar mis datos (JSON)") {
+                        let payload: [String: Any] = [
+                            "tasks": (try? JSONSerialization.jsonObject(with: Data(taskData.utf8))) ?? [],
+                            "cards": (try? JSONSerialization.jsonObject(with: Data(cardData.utf8))) ?? []
+                        ]
+                        guard let data = try? JSONSerialization.data(withJSONObject: payload, options: [.prettyPrinted, .sortedKeys]) else { return }
+                        let url = FileManager.default.temporaryDirectory.appendingPathComponent("ESTUDIAX-backup.json")
+                        do { try data.write(to: url, options: .atomic); exportFile = ExportFile(url: url) } catch { }
                     }
                     Button("Activar recordatorios locales") { UNUserNotificationCenter.current().requestAuthorization(options: [.alert, .sound, .badge]) { granted, _ in if granted { scheduleMobileReminders(tasks) } } }
                     Button("Borrar datos locales",role:.destructive) { taskData="[]";cardData="[]";PhoneWatchSync.shared.publish([]) }
@@ -177,7 +190,23 @@ private struct MobileHomeView: View {
                 }
             }.navigationTitle("Ajustes")
         }
+        .sheet(item: $exportFile) { file in
+            ActivityShareSheet(items: [file.url])
+        }
     }
+}
+
+private struct ExportFile: Identifiable {
+    let id = UUID()
+    let url: URL
+}
+
+private struct ActivityShareSheet: UIViewControllerRepresentable {
+    let items: [Any]
+    func makeUIViewController(context: Context) -> UIActivityViewController {
+        UIActivityViewController(activityItems: items, applicationActivities: nil)
+    }
+    func updateUIViewController(_ controller: UIActivityViewController, context: Context) { }
 }
 
 private struct MobileCard: Codable, Identifiable {
@@ -198,8 +227,12 @@ private func scheduleMobileReminders(_ tasks: [StudyTask]) {
             content.title = "ESTUDIAX · Entrega próxima"
             content.body = task.title
             content.sound = .default
-            let date = Calendar.current.date(byAdding: .day, value: -1, to: due) ?? due
-            let parts = Calendar.current.dateComponents([.year, .month, .day, .hour, .minute], from: date)
+            var morning = Calendar.current.dateComponents([.year, .month, .day], from: due)
+            morning.hour = 9
+            morning.minute = 0
+            let dueMorning = Calendar.current.date(from: morning) ?? due
+            guard let reminderDate = Calendar.current.date(byAdding: .day, value: -1, to: dueMorning), reminderDate > .now else { continue }
+            let parts = Calendar.current.dateComponents([.year, .month, .day, .hour, .minute], from: reminderDate)
             let trigger = UNCalendarNotificationTrigger(dateMatching: parts, repeats: false)
             center.add(UNNotificationRequest(identifier: task.id.uuidString, content: content, trigger: trigger))
         }
