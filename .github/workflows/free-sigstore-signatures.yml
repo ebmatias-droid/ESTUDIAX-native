@@ -1,0 +1,46 @@
+name: Free verifiable signatures (Sigstore)
+
+on:
+  workflow_dispatch:
+    inputs:
+      release_tag:
+        description: Existing GitHub Release tag to sign (for example continuous)
+        required: true
+        default: continuous
+        type: string
+
+permissions:
+  contents: write
+  id-token: write
+
+jobs:
+  sign-release-assets:
+    name: Sign published assets with keyless Sigstore
+    runs-on: ubuntu-latest
+    steps:
+      - name: Install Cosign
+        uses: sigstore/cosign-installer@v3.9.2
+      - name: Download existing native release assets
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ inputs.release_tag }}
+        run: |
+          mkdir -p dist
+          gh release download "$TAG" --repo "${{ github.repository }}" --pattern "ESTUDIAX-Android-debug.apk" --dir dist
+          gh release download "$TAG" --repo "${{ github.repository }}" --pattern "ESTUDIAX-macOS.dmg" --dir dist
+          gh release download "$TAG" --repo "${{ github.repository }}" --pattern "ESTUDIAX-Windows-Setup.exe" --dir dist
+          gh release download "$TAG" --repo "${{ github.repository }}" --pattern "ESTUDIAX-Linux.AppImage" --dir dist
+          gh release download "$TAG" --repo "${{ github.repository }}" --pattern "ESTUDIAX-Linux.deb" --dir dist
+      - name: Create keyless Sigstore bundles
+        env:
+          TAG: ${{ inputs.release_tag }}
+        run: |
+          set -euo pipefail
+          for file in dist/ESTUDIAX-Android-debug.apk dist/ESTUDIAX-macOS.dmg dist/ESTUDIAX-Windows-Setup.exe dist/ESTUDIAX-Linux.AppImage dist/ESTUDIAX-Linux.deb; do
+            cosign sign-blob --yes --bundle "${file}.sigstore.json" "$file"
+          done
+      - name: Upload signature bundles to the same release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ inputs.release_tag }}
+        run: gh release upload "$TAG" dist/*.sigstore.json --repo "${{ github.repository }}" --clobber
