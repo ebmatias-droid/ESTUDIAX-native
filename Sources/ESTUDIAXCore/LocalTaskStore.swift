@@ -55,6 +55,15 @@ public actor LocalTaskStore {
         guard let data = try? Data(contentsOf: url) else { return [] }
         let decoder = JSONDecoder()
         decoder.dateDecodingStrategy = .iso8601
-        return (try? decoder.decode([StudyTask].self, from: data)) ?? []
+        do {
+            return try decoder.decode([StudyTask].self, from: data)
+        } catch {
+            // Preserve malformed data for recovery instead of silently
+            // overwriting it on the next save.
+            let backupURL = url.deletingLastPathComponent()
+                .appendingPathComponent("tasks-corrupt-\(UUID().uuidString).json")
+            try? FileManager.default.moveItem(at: url, to: backupURL)
+            return []
+        }
     }
 }

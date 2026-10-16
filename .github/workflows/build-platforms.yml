@@ -85,7 +85,10 @@ jobs:
       - uses: gradle/actions/setup-gradle@v4
         with:
           gradle-version: '8.9'
-      - run: gradle -p android assembleDebug
+      - name: Run Android unit tests and lint
+        run: gradle -p android testDebugUnitTest lintDebug
+      - name: Build Android debug APK
+        run: gradle -p android assembleDebug
       - run: cp android/app/build/outputs/apk/debug/app-debug.apk ESTUDIAX-Android-debug.apk
       - uses: actions/upload-artifact@v4
         with:
@@ -149,7 +152,7 @@ jobs:
           path: ESTUDIAX-*
 
   publish-continuous:
-    if: (github.event_name == 'push' || github.event_name == 'workflow_dispatch') && needs.android.result == 'success' && needs.desktop.result == 'success'
+    if: github.ref == 'refs/heads/main' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch') && needs.android.result == 'success' && needs.desktop.result == 'success'
     needs: [android, desktop]
     permissions:
       contents: write
@@ -171,8 +174,18 @@ jobs:
           name: ESTUDIAX-linux-installer
           path: dist
           merge-multiple: true
+      - name: Verify expected release artifacts
+        run: |
+          set -euo pipefail
+          test -s dist/ESTUDIAX-Android-debug.apk
+          test -s dist/ESTUDIAX-Windows-Setup.exe
+          test -s dist/ESTUDIAX-Linux.AppImage
+          test -s dist/ESTUDIAX-Linux.deb
       - name: Generate SHA-256 checksums
-        run: cd dist && sha256sum * > SHA256SUMS.txt
+        run: |
+          set -euo pipefail
+          cd dist
+          sha256sum ESTUDIAX-Android-debug.apk ESTUDIAX-Windows-Setup.exe ESTUDIAX-Linux.AppImage ESTUDIAX-Linux.deb > SHA256SUMS.txt
       - name: Install Cosign
         uses: sigstore/cosign-installer@v3.9.2
       - name: Sign Android, Windows, and Linux assets with keyless Sigstore
@@ -180,7 +193,10 @@ jobs:
           set -euo pipefail
           for file in dist/ESTUDIAX-Android-debug.apk dist/ESTUDIAX-Windows-Setup.exe dist/ESTUDIAX-Linux.AppImage dist/ESTUDIAX-Linux.deb; do
             cosign sign-blob --yes --bundle "${file}.sigstore.json" "$file"
+            test -s "${file}.sigstore.json"
           done
+          cosign sign-blob --yes --bundle dist/SHA256SUMS.txt.sigstore.json dist/SHA256SUMS.txt
+          test -s dist/SHA256SUMS.txt.sigstore.json
       - name: Create rolling non-Apple prerelease after Android, Windows, and Linux builds pass
         env:
           GH_TOKEN: ${{ github.token }}
@@ -211,8 +227,18 @@ jobs:
           name: ESTUDIAX-linux-installer
           path: dist
           merge-multiple: true
+      - name: Verify expected release artifacts
+        run: |
+          set -euo pipefail
+          test -s dist/ESTUDIAX-Android-debug.apk
+          test -s dist/ESTUDIAX-Windows-Setup.exe
+          test -s dist/ESTUDIAX-Linux.AppImage
+          test -s dist/ESTUDIAX-Linux.deb
       - name: Generate SHA-256 checksums
-        run: cd dist && sha256sum * > SHA256SUMS.txt
+        run: |
+          set -euo pipefail
+          cd dist
+          sha256sum ESTUDIAX-Android-debug.apk ESTUDIAX-Windows-Setup.exe ESTUDIAX-Linux.AppImage ESTUDIAX-Linux.deb > SHA256SUMS.txt
       - name: Install Cosign
         uses: sigstore/cosign-installer@v3.9.2
       - name: Sign Android, Windows, and Linux assets with keyless Sigstore
@@ -220,9 +246,43 @@ jobs:
           set -euo pipefail
           for file in dist/ESTUDIAX-Android-debug.apk dist/ESTUDIAX-Windows-Setup.exe dist/ESTUDIAX-Linux.AppImage dist/ESTUDIAX-Linux.deb; do
             cosign sign-blob --yes --bundle "${file}.sigstore.json" "$file"
+            test -s "${file}.sigstore.json"
           done
+          cosign sign-blob --yes --bundle dist/SHA256SUMS.txt.sigstore.json dist/SHA256SUMS.txt
+          test -s dist/SHA256SUMS.txt.sigstore.json
       - name: Publish non-Apple assets after Android, Windows, and Linux builds pass
         env:
           GH_TOKEN: ${{ github.token }}
           TAG: ${{ github.event.release.tag_name }}
         run: gh release upload "$TAG" dist/* --repo "${{ github.repository }}" --clobber
+
+  publish-apple-preview:
+    if: github.ref == 'refs/heads/main' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch') && needs.macos.result == 'success'
+    needs: [macos]
+    permissions:
+      contents: write
+      id-token: write
+    runs-on: macos-14
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: ESTUDIAX-macOS-DMG
+          path: dist
+      - name: Install Cosign
+        uses: sigstore/cosign-installer@v3.9.2
+      - name: Generate checksum and free keyless provenance signature
+        run: |
+          set -euo pipefail
+          cd dist
+          shasum -a 256 ESTUDIAX-macOS.dmg > ESTUDIAX-macOS.dmg.sha256
+          cosign sign-blob --yes --bundle ESTUDIAX-macOS.dmg.sigstore.json ESTUDIAX-macOS.dmg
+          cosign sign-blob --yes --bundle ESTUDIAX-macOS.dmg.sha256.sigstore.json ESTUDIAX-macOS.dmg.sha256
+          test -s ESTUDIAX-macOS.dmg.sigstore.json
+          test -s ESTUDIAX-macOS.dmg.sha256.sigstore.json
+      - name: Publish Apple preview with explicit unsigned status
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          gh release view continuous --repo "${{ github.repository }}" >/dev/null 2>&1 || gh release create continuous --repo "${{ github.repository }}" --target main --prerelease --title "ESTUDIAX continuous builds" --notes "Automated preview builds. Apple DMG has a free Sigstore provenance bundle but is not Apple Developer ID signed or notarized."
+          gh release upload continuous dist/ESTUDIAX-macOS.dmg dist/ESTUDIAX-macOS.dmg.sha256 dist/ESTUDIAX-macOS.dmg.sigstore.json dist/ESTUDIAX-macOS.dmg.sha256.sigstore.json --repo "${{ github.repository }}" --clobber

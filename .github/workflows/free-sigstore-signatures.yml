@@ -15,6 +15,7 @@ permissions:
 
 jobs:
   sign-release-assets:
+    if: github.ref == 'refs/heads/main'
     name: Sign non-Apple release assets with keyless Sigstore
     runs-on: ubuntu-latest
     steps:
@@ -31,14 +32,19 @@ jobs:
           gh release download "$TAG" --repo "${{ github.repository }}" --pattern "ESTUDIAX-Windows-Setup.exe" --dir dist
           gh release download "$TAG" --repo "${{ github.repository }}" --pattern "ESTUDIAX-Linux.AppImage" --dir dist
           gh release download "$TAG" --repo "${{ github.repository }}" --pattern "ESTUDIAX-Linux.deb" --dir dist
-      - name: Create keyless Sigstore bundles
+      - name: Generate SHA-256 manifest and keyless Sigstore bundles
         run: |
           set -euo pipefail
-          for file in dist/ESTUDIAX-Android-debug.apk dist/ESTUDIAX-Windows-Setup.exe dist/ESTUDIAX-Linux.AppImage dist/ESTUDIAX-Linux.deb; do
+          cd dist
+          sha256sum ESTUDIAX-Android-debug.apk ESTUDIAX-Windows-Setup.exe ESTUDIAX-Linux.AppImage ESTUDIAX-Linux.deb > SHA256SUMS.txt
+          for file in ESTUDIAX-Android-debug.apk ESTUDIAX-Windows-Setup.exe ESTUDIAX-Linux.AppImage ESTUDIAX-Linux.deb; do
             cosign sign-blob --yes --bundle "${file}.sigstore.json" "$file"
+            test -s "${file}.sigstore.json"
           done
-      - name: Upload signature bundles to the same release
+          cosign sign-blob --yes --bundle SHA256SUMS.txt.sigstore.json SHA256SUMS.txt
+          test -s SHA256SUMS.txt.sigstore.json
+      - name: Upload checksums and signature bundles to the same release
         env:
           GH_TOKEN: ${{ github.token }}
           TAG: ${{ inputs.release_tag }}
-        run: gh release upload "$TAG" dist/*.sigstore.json --repo "${{ github.repository }}" --clobber
+        run: gh release upload "$TAG" dist/SHA256SUMS.txt dist/*.sigstore.json --repo "${{ github.repository }}" --clobber

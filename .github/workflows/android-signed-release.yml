@@ -15,6 +15,7 @@ permissions:
 
 jobs:
   android-release:
+    if: github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -36,6 +37,8 @@ jobs:
           for name in KEYSTORE_BASE64 STORE_PASSWORD KEY_ALIAS KEY_PASSWORD; do
             if [ -z "${!name}" ]; then echo "::error::Missing GitHub Actions secret: $name. Follow docs/ANDROID-RELEASE-KEY.md."; exit 1; fi
           done
+      - name: Run Android unit tests and lint
+        run: gradle -p android testDebugUnitTest lintDebug
       - name: Build and verify signed APK
         env:
           ANDROID_KEYSTORE_PATH: ${{ runner.temp }}/estudiax-release.jks
@@ -59,8 +62,10 @@ jobs:
         uses: sigstore/cosign-installer@v3.9.2
       - name: Create Sigstore provenance bundle for the release-signed APK
         run: cosign sign-blob --yes --bundle ESTUDIAX-Android.apk.sigstore.json ESTUDIAX-Android.apk
-      - name: Upload signed APK, checksum, and Sigstore bundle
+      - name: Sign checksum manifest
+        run: cosign sign-blob --yes --bundle ESTUDIAX-Android.apk.sha256.sigstore.json ESTUDIAX-Android.apk.sha256
+      - name: Upload signed APK, checksum, and Sigstore bundles
         env:
           GH_TOKEN: ${{ github.token }}
           TAG: ${{ inputs.release_tag }}
-        run: gh release upload "$TAG" ESTUDIAX-Android.apk ESTUDIAX-Android.apk.sha256 ESTUDIAX-Android.apk.sigstore.json --repo "${{ github.repository }}" --clobber
+        run: gh release upload "$TAG" ESTUDIAX-Android.apk ESTUDIAX-Android.apk.sha256 ESTUDIAX-Android.apk.sigstore.json ESTUDIAX-Android.apk.sha256.sigstore.json --repo "${{ github.repository }}" --clobber

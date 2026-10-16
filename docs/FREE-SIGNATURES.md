@@ -1,16 +1,17 @@
-# Free release integrity signatures (non-Apple)
+# Free release integrity signatures (Sigstore)
 
 ESTUDIAX uses Sigstore keyless signing through GitHub Actions OIDC. This requires no paid certificate and no long-lived private signing key in repository secrets.
 
 ## Scope
 
-The platform build workflow signs the exact bytes it publishes for these non-Apple release assets:
+The platform build workflow signs the exact bytes it publishes for these assets:
 - `ESTUDIAX-Android-debug.apk`
 - `ESTUDIAX-Windows-Setup.exe`
 - `ESTUDIAX-Linux.AppImage`
 - `ESTUDIAX-Linux.deb`
+- `ESTUDIAX-macOS.dmg` (separate Apple preview job; provenance only)
 
-The signatures are published as matching `.sigstore.json` bundles beside the files. The CI generates a fresh bundle whenever it publishes a new build. The separate **Free verifiable signatures (Sigstore)** workflow can be run manually to sign the current assets on an existing release. Neither workflow applies Apple's Developer ID signing or notarization.
+The signatures are published as matching `.sigstore.json` bundles beside the files. CI generates a fresh bundle for each artifact it publishes. The separate **Free verifiable signatures (Sigstore)** workflow can be run manually to sign Android, Windows and Linux assets on an existing release. The macOS DMG is handled by a separate Apple-preview job. Sigstore signatures provide verifiable artifact integrity and workflow identity, not operating-system publisher trust.
 
 ## Verify
 
@@ -28,6 +29,6 @@ Also compare the file's SHA-256 digest with `SHA256SUMS.txt` from the same relea
 - Linux AppImage and DEB packages have Sigstore bundles; this does not automatically create a signed Linux package repository.
 - The current Android `debug` APK remains a test build, not a Play Store release. For a production APK, create a permanent keystore locally and configure the protected GitHub Actions secrets described in [ANDROID-RELEASE-KEY.md](./ANDROID-RELEASE-KEY.md). Never send the keystore or passwords in chat or commit them to Git.
 - Windows Authenticode signing normally needs a code-signing certificate. Do not claim Authenticode signing based on a Sigstore bundle.
-- macOS Developer ID signing and notarization are deliberately outside this workflow.
+- The macOS DMG receives a free Sigstore provenance signature only. This does **not** sign the `.app` bundle with Apple Developer ID, notarize it, satisfy Gatekeeper, or enable trusted App Store distribution. Apple Developer ID signing/notarization remain unavailable without the required Apple credentials.
 
 Never upload signing passwords or private keys to Git, issues, or chat.

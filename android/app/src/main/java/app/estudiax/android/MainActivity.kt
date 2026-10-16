@@ -41,14 +41,24 @@ class MainActivity : Activity() {
         try {
             JSONArray(prefs.getString("tasks", "[]") ?: "[]").let { a -> for (i in 0 until a.length()) tasks.add(a.getJSONObject(i)) }
         } catch (_: Exception) {
+            // Preserve malformed user-owned data before resetting the active
+            // value, so the next save cannot silently destroy the only copy.
+            val malformed = prefs.getString("tasks", "[]") ?: "[]"
+            if (!prefs.contains("tasks_recovery_v1")) {
+                prefs.edit().putString("tasks_recovery_v1", malformed).apply()
+            }
             tasks.clear()
-            prefs.edit().remove("tasks").apply()
+            prefs.edit().putString("tasks", "[]").apply()
         }
         try {
             JSONArray(prefs.getString("cards", "[]") ?: "[]").let { a -> for (i in 0 until a.length()) cards.add(a.getJSONObject(i)) }
         } catch (_: Exception) {
+            val malformed = prefs.getString("cards", "[]") ?: "[]"
+            if (!prefs.contains("cards_recovery_v1")) {
+                prefs.edit().putString("cards_recovery_v1", malformed).apply()
+            }
             cards.clear()
-            prefs.edit().remove("cards").apply()
+            prefs.edit().putString("cards", "[]").apply()
         }
         if (!prefs.getBoolean("accepted_terms_v1", false)) showConsent() else showHome()
     }
