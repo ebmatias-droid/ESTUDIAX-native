@@ -1,6 +1,9 @@
 package app.estudiax.android
 
 import android.app.Activity
+import android.app.AlertDialog
+import android.content.Intent
+import android.net.Uri
 import android.os.Bundle
 import android.graphics.Color
 import android.graphics.Typeface
@@ -12,20 +15,183 @@ import org.json.JSONObject
 class MainActivity : Activity() {
     private val prefs by lazy { getSharedPreferences("estudiax_local", MODE_PRIVATE) }
     private val tasks = mutableListOf<JSONObject>()
+    private val cards = mutableListOf<JSONObject>()
     private lateinit var root: LinearLayout
     private lateinit var body: LinearLayout
+    private var view = "tasks"
     private val bg = Color.rgb(12, 19, 32)
     private val panel = Color.rgb(20, 31, 49)
     private val fg = Color.rgb(239, 244, 255)
     private val muted = Color.rgb(155, 173, 200)
-    override fun onCreate(savedInstanceState: Bundle?) { super.onCreate(savedInstanceState); window.statusBarColor=bg;window.navigationBarColor=bg;val a=JSONArray(prefs.getString("tasks","[]")?:"[]");for(i in 0 until a.length())tasks.add(a.getJSONObject(i));showHome() }
-    private fun save(){val a=JSONArray();tasks.forEach{a.put(it)};prefs.edit().putString("tasks",a.toString()).apply()}
-    private fun text(s:String,size:Float=16f,bold:Boolean=false)=TextView(this).apply{text=s;textSize=size;setTextColor(fg);if(bold)setTypeface(null,Typeface.BOLD);setPadding(0,8,0,8)}
-    private fun button(s:String,fn:()->Unit)=Button(this).apply{text=s;setOnClickListener{fn()}}
-    private fun input(s:String)=EditText(this).apply{hint=s;setHintTextColor(muted);setTextColor(fg);setSingleLine(true);setPadding(16,10,16,10);setBackgroundColor(panel)}
-    private fun column()=LinearLayout(this).apply{orientation=LinearLayout.VERTICAL;setPadding(20,18,20,22);setBackgroundColor(bg)}
-    private fun start(title:String){root=column();root.addView(text("📘 ESTUDIAX",24f,true));root.addView(text(title,21f,true));root.addView(text("Modo local · No necesita cuenta ni conexión",12f).apply{setTextColor(muted)});setContentView(root)}
-    private fun showHome(){start("Mis tareas");val tabs=LinearLayout(this).apply{orientation=LinearLayout.HORIZONTAL};tabs.addView(button("Tareas"){showHome()},LinearLayout.LayoutParams(0,-2,1f));tabs.addView(button("Calendario"){showCalendar()},LinearLayout.LayoutParams(0,-2,1f));tabs.addView(button("Progreso"){showProgress()},LinearLayout.LayoutParams(0,-2,1f));root.addView(tabs);val scroll=ScrollView(this);body=column();scroll.addView(body);root.addView(scroll,LinearLayout.LayoutParams(-1,0,1f));body.addView(text("Nueva tarea",18f,true));val title=input("Nombre de la tarea");body.addView(title);val subject=input("Materia");body.addView(subject);body.addView(button("＋ Añadir tarea"){val v=title.text.toString().trim();if(v.isNotEmpty()){tasks.add(JSONObject().put("title",v).put("subject",subject.text.toString()).put("done",false));save();showHome()}});body.addView(text("Lista",18f,true));if(tasks.isEmpty())body.addView(text("Aún no tienes tareas.",14f).apply{setTextColor(muted)});tasks.forEachIndexed{index,t->val row=LinearLayout(this).apply{orientation=LinearLayout.HORIZONTAL;gravity=Gravity.CENTER_VERTICAL};val cb=CheckBox(this).apply{isChecked=t.optBoolean("done");setOnCheckedChangeListener{_,v->t.put("done",v);save();showHome()}};row.addView(cb);row.addView(text(t.optString("title")+"\n"+t.optString("subject"),15f),LinearLayout.LayoutParams(0,-2,1f));row.addView(button("×"){tasks.removeAt(index);save();showHome()});body.addView(row)}}
-    private fun showCalendar(){start("Calendario");root.addView(button("← Tareas"){showHome()});val today=java.text.SimpleDateFormat("yyyy-MM-dd",java.util.Locale.US).format(java.util.Date());val todayTasks=tasks.filter{it.optString("due")==today};root.addView(text("Entregas de hoy",18f,true));if(todayTasks.isEmpty())root.addView(text("No hay entregas registradas para hoy.",14f).apply{setTextColor(muted)}) else todayTasks.forEach{root.addView(text("• "+it.optString("title")))};root.addView(text("Añade fechas desde la versión web o de escritorio.",13f).apply{setTextColor(muted)})}
-    private fun showProgress(){start("Progreso");root.addView(text("${tasks.count{it.optBoolean("done")}} de ${tasks.size} tareas completadas",20f,true));root.addView(button("← Tareas"){showHome()})}
+
+    override fun onCreate(savedInstanceState: Bundle?) {
+        super.onCreate(savedInstanceState)
+        window.statusBarColor = bg
+        window.navigationBarColor = bg
+        JSONArray(prefs.getString("tasks", "[]") ?: "[]").let { a -> for (i in 0 until a.length()) tasks.add(a.getJSONObject(i)) }
+        JSONArray(prefs.getString("cards", "[]") ?: "[]").let { a -> for (i in 0 until a.length()) cards.add(a.getJSONObject(i)) }
+        if (!prefs.getBoolean("accepted_terms_v1", false)) showConsent() else showHome()
+    }
+
+    private fun save() {
+        val t = JSONArray(); tasks.forEach { t.put(it) }
+        val c = JSONArray(); cards.forEach { c.put(it) }
+        prefs.edit().putString("tasks", t.toString()).putString("cards", c.toString()).apply()
+    }
+    private fun text(s: String, size: Float = 16f, bold: Boolean = false) = TextView(this).apply {
+        text = s; textSize = size; setTextColor(fg)
+        if (bold) setTypeface(null, Typeface.BOLD)
+        setPadding(0, 8, 0, 8)
+    }
+    private fun button(s: String, fn: () -> Unit) = Button(this).apply { text = s; setOnClickListener { fn() } }
+    private fun input(s: String) = EditText(this).apply {
+        hint = s; setHintTextColor(muted); setTextColor(fg); setSingleLine(true)
+        setPadding(16, 10, 16, 10); setBackgroundColor(panel)
+    }
+    private fun column() = LinearLayout(this).apply {
+        orientation = LinearLayout.VERTICAL; setPadding(20, 18, 20, 22); setBackgroundColor(bg)
+    }
+    private fun start(title: String) {
+        root = column()
+        root.addView(text("📘 ESTUDIAX", 24f, true))
+        root.addView(text(title, 21f, true))
+        root.addView(text("Modo local · No necesita cuenta ni conexión", 12f).apply { setTextColor(muted) })
+        setContentView(root)
+    }
+
+    private fun showConsent() {
+        AlertDialog.Builder(this)
+            .setTitle("Bienvenido a ESTUDIAX")
+            .setMessage("Las tareas y tarjetas se guardan en este dispositivo. No se necesita una cuenta ni conexión para las funciones locales. La IA y Google Drive son servicios opcionales que solo se abren cuando tú los eliges. Al continuar aceptas los términos y el aviso de privacidad de ESTUDIAX.")
+            .setCancelable(false)
+            .setNegativeButton("Salir") { _, _ -> finish() }
+            .setPositiveButton("Aceptar y continuar") { _, _ ->
+                prefs.edit().putBoolean("accepted_terms_v1", true).apply()
+                showHome()
+            }.show()
+    }
+
+    private fun showHome() {
+        view = "tasks"
+        start("Tu espacio de estudio")
+        val tabs = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER }
+        listOf("Tareas" to "tasks", "Calendario" to "calendar", "Tarjetas" to "cards", "Progreso" to "progress", "Ajustes" to "settings").forEach { (label, id) ->
+            tabs.addView(button(label) { view = id; renderView() }, LinearLayout.LayoutParams(0, -2, 1f))
+        }
+        root.addView(tabs)
+        val scroll = ScrollView(this)
+        body = column()
+        scroll.addView(body)
+        root.addView(scroll, LinearLayout.LayoutParams(-1, 0, 1f))
+        renderView()
+    }
+
+    private fun renderView() {
+        body.removeAllViews()
+        when (view) {
+            "tasks" -> renderTasks()
+            "calendar" -> renderCalendar()
+            "cards" -> renderCards()
+            "progress" -> renderProgress()
+            else -> renderSettings()
+        }
+    }
+
+    private fun renderTasks() {
+        body.addView(text("Nueva tarea", 18f, true))
+        val title = input("Nombre de la tarea"); body.addView(title)
+        val subject = input("Materia"); body.addView(subject)
+        val due = input("Fecha de entrega (AAAA-MM-DD, opcional)"); body.addView(due)
+        body.addView(button("＋ Añadir tarea") {
+            val v = title.text.toString().trim()
+            if (v.isNotEmpty()) {
+                tasks.add(JSONObject().put("id", System.currentTimeMillis().toString()).put("title", v)
+                    .put("subject", subject.text.toString().trim()).put("due", due.text.toString().trim()).put("done", false))
+                save(); renderView()
+            }
+        })
+        body.addView(text("Mis tareas", 18f, true))
+        if (tasks.isEmpty()) body.addView(text("Aún no tienes tareas.", 14f).apply { setTextColor(muted) })
+        tasks.forEachIndexed { index, task ->
+            val row = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL }
+            val cb = CheckBox(this).apply {
+                isChecked = task.optBoolean("done")
+                setOnCheckedChangeListener { _, checked -> task.put("done", checked); save(); renderView() }
+            }
+            row.addView(cb)
+            row.addView(text(task.optString("title") + "\n" + task.optString("subject", "Sin materia") +
+                (if (task.optString("due").isNotBlank()) "\nEntrega: " + task.optString("due") else ""), 14f),
+                LinearLayout.LayoutParams(0, -2, 1f))
+            row.addView(button("×") { tasks.removeAt(index); save(); renderView() })
+            body.addView(row)
+        }
+    }
+
+    private fun renderCalendar() {
+        body.addView(text("Próximas entregas", 18f, true))
+        val upcoming = tasks.filter { it.optString("due").isNotBlank() && !it.optBoolean("done") }.sortedBy { it.optString("due") }
+        if (upcoming.isEmpty()) body.addView(text("Todavía no hay entregas fechadas. Añade una fecha desde Tareas.", 14f).apply { setTextColor(muted) })
+        upcoming.forEach { body.addView(text("📅 ${it.optString("due")} · ${it.optString("title")}\n${it.optString("subject")}", 15f)) }
+        body.addView(text("Todos estos datos se guardan solo en el dispositivo.", 12f).apply { setTextColor(muted) })
+    }
+
+    private fun renderCards() {
+        body.addView(text("Crear tarjeta", 18f, true))
+        val front = input("Pregunta o concepto"); body.addView(front)
+        val back = input("Respuesta"); body.addView(back)
+        body.addView(button("Guardar tarjeta") {
+            val q = front.text.toString().trim(); val a = back.text.toString().trim()
+            if (q.isNotEmpty() && a.isNotEmpty()) {
+                cards.add(JSONObject().put("id", System.currentTimeMillis().toString()).put("front", q).put("back", a))
+                save(); renderView()
+            }
+        })
+        body.addView(text("Mi mazo", 18f, true))
+        cards.forEachIndexed { index, card ->
+            val row = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setPadding(0, 10, 0, 10) }
+            row.addView(text(card.optString("front"), 16f, true))
+            val answer = text(card.optString("back"), 14f).apply { setTextColor(muted); visibility = android.view.View.GONE }
+            row.addView(answer)
+            row.addView(button("Ver / ocultar respuesta") { answer.visibility = if (answer.visibility == android.view.View.VISIBLE) android.view.View.GONE else android.view.View.VISIBLE })
+            row.addView(button("Eliminar tarjeta") { cards.removeAt(index); save(); renderView() })
+            body.addView(row)
+        }
+    }
+
+    private fun renderProgress() {
+        val done = tasks.count { it.optBoolean("done") }
+        body.addView(text("Tareas completadas: $done de ${tasks.size}", 20f, true))
+        body.addView(ProgressBar(this, null, android.R.attr.progressBarStyleHorizontal).apply {
+            max = maxOf(tasks.size, 1); progress = done
+        })
+        body.addView(text("Tarjetas creadas: ${cards.size}", 16f))
+        body.addView(text("El progreso se calcula localmente.", 13f).apply { setTextColor(muted) })
+    }
+
+    private fun renderSettings() {
+        body.addView(text("Privacidad", 18f, true))
+        body.addView(text("Sin cuenta obligatoria ni solicitudes de red al iniciar. Los datos de estudio permanecen en este dispositivo.", 14f).apply { setTextColor(muted) })
+        body.addView(button("Exportar datos (JSON al portapapeles)") {
+            val payload = JSONObject().put("tasks", JSONArray().also { a -> tasks.forEach { a.put(it) } })
+                .put("cards", JSONArray().also { a -> cards.forEach { a.put(it) } })
+            val clipboard = getSystemService(CLIPBOARD_SERVICE) as android.content.ClipboardManager
+            clipboard.setPrimaryClip(android.content.ClipData.newPlainText("ESTUDIAX backup", payload.toString(2)))
+            Toast.makeText(this, "Copia de seguridad copiada", Toast.LENGTH_SHORT).show()
+        })
+        body.addView(button("Borrar todos los datos locales") {
+            AlertDialog.Builder(this).setTitle("Borrar datos")
+                .setMessage("Esta acción elimina tus tareas y tarjetas de este dispositivo.")
+                .setNegativeButton("Cancelar", null).setPositiveButton("Borrar") { _, _ ->
+                    tasks.clear(); cards.clear(); save(); renderView()
+                }.show()
+        })
+        body.addView(text("Funciones en línea opcionales", 18f, true))
+        body.addView(text("La IA y Google Drive se abren solo si tú pulsas uno de estos accesos. No se envían tareas automáticamente.", 13f).apply { setTextColor(muted) })
+        body.addView(button("Abrir ESTUDIAX Web · IA y Google Drive") {
+            startActivity(Intent(Intent.ACTION_VIEW, Uri.parse("https://estudiax.higgsfield.app")))
+        })
+        body.addView(button("Ver términos y privacidad") {
+            startActivity(Intent(Intent.ACTION_VIEW, Uri.parse("https://estudiax.higgsfield.app")))
+        })
+    }
 }
