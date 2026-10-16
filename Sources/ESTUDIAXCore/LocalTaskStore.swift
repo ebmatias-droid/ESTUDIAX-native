@@ -9,9 +9,11 @@ public actor LocalTaskStore {
         if let fileURL {
             self.fileURL = fileURL
         } else {
-            let support = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first!
+            let fileManager = FileManager.default
+            let support = fileManager.urls(for: .applicationSupportDirectory, in: .userDomainMask).first
+                ?? fileManager.homeDirectoryForCurrentUser.appendingPathComponent("Library/Application Support", isDirectory: true)
             let directory = support.appendingPathComponent("ESTUDIAX", isDirectory: true)
-            try? FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+            try? fileManager.createDirectory(at: directory, withIntermediateDirectories: true)
             self.fileURL = directory.appendingPathComponent("tasks.json")
         }
         self.tasks = Self.read(from: self.fileURL)
