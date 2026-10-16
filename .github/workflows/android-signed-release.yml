@@ -59,8 +59,10 @@ jobs:
         uses: sigstore/cosign-installer@v3.9.2
       - name: Create Sigstore provenance bundle for the release-signed APK
         run: cosign sign-blob --yes --bundle ESTUDIAX-Android.apk.sigstore.json ESTUDIAX-Android.apk
-      - name: Upload signed APK, checksum, and Sigstore bundle
+      - name: Sign checksum manifest
+        run: cosign sign-blob --yes --bundle ESTUDIAX-Android.apk.sha256.sigstore.json ESTUDIAX-Android.apk.sha256
+      - name: Upload signed APK, checksum, and Sigstore bundles
         env:
           GH_TOKEN: ${{ github.token }}
           TAG: ${{ inputs.release_tag }}
-        run: gh release upload "$TAG" ESTUDIAX-Android.apk ESTUDIAX-Android.apk.sha256 ESTUDIAX-Android.apk.sigstore.json --repo "${{ github.repository }}" --clobber
+        run: gh release upload "$TAG" ESTUDIAX-Android.apk ESTUDIAX-Android.apk.sha256 ESTUDIAX-Android.apk.sigstore.json ESTUDIAX-Android.apk.sha256.sigstore.json --repo "${{ github.repository }}" --clobber
