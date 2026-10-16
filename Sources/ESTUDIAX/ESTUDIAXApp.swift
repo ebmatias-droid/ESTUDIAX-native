@@ -1,6 +1,7 @@
 import SwiftUI
 import AppKit
 import UserNotifications
+import UniformTypeIdentifiers
 import ESTUDIAXCore
 
 @main
@@ -70,6 +71,11 @@ private struct StudyCard: Codable, Identifiable {
     var id: UUID = UUID()
     var question: String
     var answer: String
+}
+
+private struct StudyBackup: Codable {
+    var tasks: [StudyTask]
+    var cards: [StudyCard]
 }
 
 private struct HomeView: View {
@@ -226,12 +232,21 @@ private struct HomeView: View {
                     Task { await scheduleReminders() }
                 }
             }.buttonStyle(.borderedProminent)
-            Button("Copiar copia de seguridad", action: {
-                let taskLines = tasks.map { "\($0.title) | \($0.subject) | \($0.dueDate?.description ?? "") | completada: \($0.isCompleted)" }.joined(separator: "\n")
-                let cardLines = cards.map { "\($0.question) → \($0.answer)" }.joined(separator: "\n")
-                NSPasteboard.general.clearContents()
-                NSPasteboard.general.setString("Tareas:\n\(taskLines)\n\nTarjetas:\n\(cardLines)", forType: .string)
-            })
+            Button("Exportar copia de seguridad (JSON)") {
+                let panel = NSSavePanel()
+                panel.title = "Exportar datos de ESTUDIAX"
+                panel.nameFieldStringValue = "ESTUDIAX-backup.json"
+                panel.allowedContentTypes = [.json]
+                panel.canCreateDirectories = true
+                panel.begin { response in
+                    guard response == .OK, let url = panel.url else { return }
+                    let encoder = JSONEncoder()
+                    encoder.dateEncodingStrategy = .iso8601
+                    encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
+                    guard let data = try? encoder.encode(StudyBackup(tasks: tasks, cards: cards)) else { return }
+                    try? data.write(to: url, options: .atomic)
+                }
+            }
             Button("Borrar tareas y tarjetas locales", role: .destructive) {
                 Task { for task in await store.allTasks() { try? await store.delete(id: task.id) }; saveCards([]); await reload() }
             }
@@ -258,10 +273,11 @@ private struct HomeView: View {
         var updated = task
         updated.isCompleted.toggle()
         let updatedTask = updated
-        Task { try? await store.save(updatedTask); await reload() }
+        Task { try? await store.save(updatedTask); await reload(); await scheduleReminders() }
     }
 
     private func delete(_ task: StudyTask) {
+        UNUserNotificationCenter.current().removePendingNotificationRequests(withIdentifiers: [task.id.uuidString])
         Task { try? await store.delete(id: task.id); await reload() }
     }
 
@@ -271,7 +287,12 @@ private struct HomeView: View {
         let center = UNUserNotificationCenter.current()
         center.removeAllPendingNotificationRequests()
         for task in await store.allTasks() where !task.isCompleted {
-            guard let due = task.dueDate, let reminder = Calendar.current.date(byAdding: .day, value: -1, to: due), reminder > .now else { continue }
+            guard let due = task.dueDate else { continue }
+            var dueComponents = Calendar.current.dateComponents([.year, .month, .day], from: due)
+            dueComponents.hour = 9; dueComponents.minute = 0
+            guard let dueMorning = Calendar.current.date(from: dueComponents),
+                  let reminder = Calendar.current.date(byAdding: .day, value: -1, to: dueMorning),
+                  reminder > .now else { continue }
             var components = Calendar.current.dateComponents([.year, .month, .day], from: reminder)
             components.hour = 9; components.minute = 0
             let content = UNMutableNotificationContent()
