@@ -1,0 +1,30 @@
+version: 2
+updates:
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+    labels:
+      - security
+      - dependencies
+  - package-ecosystem: npm
+    directory: /desktop
+    schedule:
+      interval: weekly
+    labels:
+      - security
+      - dependencies
+  - package-ecosystem: cargo
+    directory: /desktop/src-tauri
+    schedule:
+      interval: weekly
+    labels:
+      - security
+      - dependencies
+  - package-ecosystem: gradle
+    directory: /android
+    schedule:
+      interval: weekly
+    labels:
+      - security
+      - dependencies
