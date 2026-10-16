@@ -52,11 +52,15 @@ private struct WatchCalendarView: View {
             }.navigationTitle("ESTUDIAX")
                 .onAppear { sync.activate() }
                 .onChange(of: sync.eventsJSON) { _, value in
-                    if value != "[]" {
-                        eventData = value
-                        if reminderEnabled, let data = value.data(using: .utf8), let synced = try? JSONDecoder().decode([WatchEvent].self, from: data) {
-                            for event in synced { schedule(event) }
-                        }
+                    guard let value else { return }
+                    // The iPhone's application context is authoritative. Apply empty
+                    // contexts too, so deleted/completed tasks do not remain stale.
+                    eventData = value
+                    if reminderEnabled,
+                       let data = value.data(using: .utf8),
+                       let synced = try? JSONDecoder().decode([WatchEvent].self, from: data) {
+                        UNUserNotificationCenter.current().removeAllPendingNotificationRequests()
+                        for event in synced { schedule(event) }
                     }
                 }
         }
@@ -90,7 +94,7 @@ private struct WatchEvent: Codable, Identifiable {
 
 
 private final class WatchSyncReceiver: NSObject, ObservableObject, WCSessionDelegate {
-    @Published var eventsJSON = "[]"
+    @Published var eventsJSON: String? = nil
     func activate() {
         guard WCSession.isSupported() else { return }
         WCSession.default.delegate = self
