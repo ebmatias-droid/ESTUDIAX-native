@@ -30,8 +30,10 @@ cd website/app && bun install --frozen-lockfile && bun run typecheck && bun run 
 
 ## Native downloads and signing
 
-GitHub Actions publishes test artifacts for macOS, Windows, Linux and Android, and builds iPhone/iPad and Watch simulator targets. Current `continuous` assets remain test builds until the signed-release workflow is run successfully with real signing credentials.
+GitHub Actions builds the macOS, Windows, Linux and Android packages and compiles the iPhone/iPad and Watch simulator targets. The workflow now uses read-only repository permissions for build jobs and grants release-write permission only to the final publishing jobs. Publishing is gated on all platform build jobs succeeding. Current `continuous` assets remain test builds until platform QA and the required native signing steps are complete.
 
 See [docs/PRODUCTION-READINESS.md](docs/PRODUCTION-READINESS.md) for release limitations, [docs/SIGNING-SETUP.md](docs/SIGNING-SETUP.md) for paid-platform requirements, [docs/FREE-SIGNATURES.md](docs/FREE-SIGNATURES.md) for free Sigstore integrity signatures, and [docs/ANDROID-RELEASE-KEY.md](docs/ANDROID-RELEASE-KEY.md) for the permanent Android release keystore setup. That workflow covers macOS Developer ID signing and notarization, Windows Authenticode signing, an Android release APK, Linux detached signatures, and TestFlight upload for iPhone/iPad with the Watch companion.
+
+See [SECURITY.md](SECURITY.md) for vulnerability reporting and release-integrity guidance. Dependabot is configured to check GitHub Actions, npm, Cargo and Gradle dependencies weekly.
 
 **Important:** the workflow is configured but does not magically create publisher identity or certificates. The owner must supply valid certificates/keys and complete platform-account setup. No private credentials belong in this repository or in chat. An unsigned build is not automatically malware; signing lets the operating system verify the publisher and, for Apple distribution, notarization status.
