@@ -174,8 +174,18 @@ jobs:
           name: ESTUDIAX-linux-installer
           path: dist
           merge-multiple: true
+      - name: Verify expected release artifacts
+        run: |
+          set -euo pipefail
+          test -s dist/ESTUDIAX-Android-debug.apk
+          test -s dist/ESTUDIAX-Windows-Setup.exe
+          test -s dist/ESTUDIAX-Linux.AppImage
+          test -s dist/ESTUDIAX-Linux.deb
       - name: Generate SHA-256 checksums
-        run: cd dist && sha256sum * > SHA256SUMS.txt
+        run: |
+          set -euo pipefail
+          cd dist
+          sha256sum ESTUDIAX-Android-debug.apk ESTUDIAX-Windows-Setup.exe ESTUDIAX-Linux.AppImage ESTUDIAX-Linux.deb > SHA256SUMS.txt
       - name: Install Cosign
         uses: sigstore/cosign-installer@v3.9.2
       - name: Sign Android, Windows, and Linux assets with keyless Sigstore
@@ -183,7 +193,10 @@ jobs:
           set -euo pipefail
           for file in dist/ESTUDIAX-Android-debug.apk dist/ESTUDIAX-Windows-Setup.exe dist/ESTUDIAX-Linux.AppImage dist/ESTUDIAX-Linux.deb; do
             cosign sign-blob --yes --bundle "${file}.sigstore.json" "$file"
+            test -s "${file}.sigstore.json"
           done
+          cosign sign-blob --yes --bundle dist/SHA256SUMS.txt.sigstore.json dist/SHA256SUMS.txt
+          test -s dist/SHA256SUMS.txt.sigstore.json
       - name: Create rolling non-Apple prerelease after Android, Windows, and Linux builds pass
         env:
           GH_TOKEN: ${{ github.token }}
