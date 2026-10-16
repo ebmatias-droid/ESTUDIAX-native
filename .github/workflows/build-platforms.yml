@@ -45,6 +45,9 @@ jobs:
     runs-on: macos-15
     steps:
       - uses: actions/checkout@v4
+      - uses: maxim-lobanov/setup-xcode@v1
+        with:
+          xcode-version: "16.4"
       - run: brew install xcodegen
       - run: xcodegen generate --spec project.yml
       - name: Build iPhone and iPad simulator app
@@ -115,6 +118,8 @@ jobs:
           d.line((144, 112, 172, 112), fill=(55, 111, 232, 255), width=6)
           im.save(p / "icon.png")
           im.save(p / "icon.ico", sizes=[(256,256),(128,128),(64,64),(48,48),(32,32),(16,16)])
+          for size in (32, 128, 256):
+              im.resize((size, size)).save(p / f"{size}x{size}.png")
           PY
       - uses: dtolnay/rust-toolchain@stable
       - uses: Swatinem/rust-cache@v2
@@ -159,7 +164,7 @@ jobs:
           if [ "$ASSET" = "linux" ]; then gh release upload "$TAG" ESTUDIAX-Linux.AppImage ESTUDIAX-Linux.deb --clobber; fi
 
   publish-continuous:
-    if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'
+    if: always() && (github.event_name == 'push' || github.event_name == 'workflow_dispatch')
     needs: [macos, android, desktop]
     runs-on: ubuntu-latest
     steps:
