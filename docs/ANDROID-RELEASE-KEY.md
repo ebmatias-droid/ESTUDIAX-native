@@ -36,7 +36,7 @@ After configuring, securely delete the temporary base64 text file if you do not 
 
 ## 3. Build the release APK
 
-After all four secrets exist, open **Actions → Android signed release APK (free) → Run workflow**, select the existing tag (normally `continuous`), and run it. It will build the release APK, verify its native Android signature with `apksigner`, and upload `ESTUDIAX-Android.apk` to that release.
+After all four secrets exist, open **Actions → Android signed release APK (free) → Run workflow**, select the existing tag (normally `continuous`), and run it. It will run `clean assembleRelease`, verify the APK's native Android signature with `apksigner`, generate a SHA-256 checksum, create a Sigstore provenance bundle, and upload `ESTUDIAX-Android.apk`, `.sha256`, and `.sigstore.json` to that release. The four secrets must exist first; without them the workflow intentionally fails closed.
 
 The separate **Free verifiable signatures (Sigstore)** workflow signs existing Android, Windows and Linux downloads for tamper detection; it does not replace native Android APK signing.
 
