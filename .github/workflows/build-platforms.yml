@@ -114,3 +114,19 @@ jobs:
         run: |
           if [ "$ASSET" = "windows" ]; then gh release upload "$TAG" ESTUDIAX-Windows-Setup.exe --clobber; fi
           if [ "$ASSET" = "linux" ]; then gh release upload "$TAG" ESTUDIAX-Linux.AppImage ESTUDIAX-Linux.deb --clobber; fi
+
+  publish-continuous:
+    if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'
+    needs: [macos, android, desktop]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: dist
+          merge-multiple: true
+      - name: Create rolling prerelease and attach verified build artifacts
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release view continuous --repo "${{ github.repository }}" >/dev/null 2>&1 || gh release create continuous --repo "${{ github.repository }}" --target main --prerelease --title "ESTUDIAX continuous builds" --notes "Automated test builds from the latest successful main-branch workflow. These are unsigned/unnotarized test packages, not store-ready stable releases."
+          gh release upload continuous dist/* --repo "${{ github.repository }}" --clobber
