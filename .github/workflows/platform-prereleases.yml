@@ -1,0 +1,68 @@
+name: Publish platform preview prereleases
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/platform-prereleases.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: platform-preview-prereleases
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download continuous build assets
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          mkdir -p "$RUNNER_TEMP/estudiax-artifacts"
+          gh release download continuous --repo "$GITHUB_REPOSITORY" --dir "$RUNNER_TEMP/estudiax-artifacts"
+
+      - name: Publish prereleases per platform
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          SHA: ${{ github.sha }}
+          RUN_NUMBER: ${{ github.run_number }}
+          ARTIFACT_DIR: ${{ runner.temp }}/estudiax-artifacts
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd "$ARTIFACT_DIR"
+          VERSION="2026.10.17-${RUN_NUMBER}"
+          COMMON="PRE-RELEASE / PRELIMINARY BUILD. Not stable or production-ready. Signing, certificates, notarization and/or store review may be incomplete. Packages may fail to install or run. Use at your own risk and verify SHA-256 sums."
+
+          sha256sum ESTUDIAX-Android-debug.apk > SHA256SUMS.txt
+          gh release create "preview-android-${VERSION}" ESTUDIAX-Android-debug.apk ESTUDIAX-Android-debug.apk.sigstore.json SHA256SUMS.txt --repo "$REPO" --target "$SHA" --prerelease --title "ESTUDIAX Android — Preview ${VERSION}" --notes "${COMMON}
+
+          DEBUG APK only; not signed as a production Play Store release. Android may warn when installing from outside the Play Store."
+
+          sha256sum ESTUDIAX-Windows-Setup.exe > SHA256SUMS.txt
+          gh release create "preview-windows-${VERSION}" ESTUDIAX-Windows-Setup.exe ESTUDIAX-Windows-Setup.exe.sigstore.json SHA256SUMS.txt --repo "$REPO" --target "$SHA" --prerelease --title "ESTUDIAX Windows — Preview ${VERSION}" --notes "${COMMON}
+
+          Authenticode publisher signing is not verified. Windows may show an unknown-publisher / SmartScreen warning."
+
+          sha256sum ESTUDIAX-Linux.AppImage ESTUDIAX-Linux.deb > SHA256SUMS.txt
+          gh release create "preview-linux-${VERSION}" ESTUDIAX-Linux.AppImage ESTUDIAX-Linux.AppImage.sigstore.json ESTUDIAX-Linux.deb ESTUDIAX-Linux.deb.sigstore.json SHA256SUMS.txt --repo "$REPO" --target "$SHA" --prerelease --title "ESTUDIAX Linux — Preview ${VERSION}" --notes "${COMMON}
+
+          AppImage and Debian packages are preliminary and not validated across all distributions."
+
+          sha256sum ESTUDIAX-macOS.dmg > SHA256SUMS.txt
+          gh release create "preview-macos-${VERSION}" ESTUDIAX-macOS.dmg ESTUDIAX-macOS.dmg.sigstore.json SHA256SUMS.txt --repo "$REPO" --target "$SHA" --prerelease --title "ESTUDIAX macOS — Preview ${VERSION}" --notes "${COMMON}
+
+          DMG is not verified as Developer ID-signed or notarized. macOS may block it. This is not a Mac App Store release."
+
+          gh release create "preview-ios-source-${VERSION}" --repo "$REPO" --target "$SHA" --prerelease --title "ESTUDIAX iOS / iPadOS — Source Preview ${VERSION}" --notes "${COMMON}
+
+          SOURCE CODE ONLY. No installable IPA is included; Apple signing, provisioning and distribution are not complete."
+
+          gh release create "preview-watchos-source-${VERSION}" --repo "$REPO" --target "$SHA" --prerelease --title "ESTUDIAX watchOS — Source Preview ${VERSION}" --notes "${COMMON}
+
+          SOURCE CODE ONLY. No installable watchOS package is included; signing, provisioning and distribution are not complete."
